@@ -13,6 +13,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Mia's Almanac">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://api.open-meteo.com" crossorigin>
+<link rel="preconnect" href="https://api.weather.gov" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Work+Sans:wght@400;500;600&family=Courier+Prime:wght@400;700&display=swap">
 <style>
 /* Layout: an almanac page. Paper ground, double-ruled plates for each section, the reading set large in old-style figures; the top plate tints with the sky */
@@ -302,14 +305,20 @@ footer{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:
   </footer>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script type="module">
-// Firebase is optional: if it can't load, the weather still works and spots fall back to this phone.
+// Firebase is optional and loads after the page is drawn: if it can't load, the weather still
+// works and spots fall back to the ones saved on this phone.
 let initializeApp = null, F = null;
-try {
-  ({ initializeApp } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js"));
-  F = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js");
-} catch (e) { initializeApp = null; F = null; }
+async function loadFirebase() {
+  try {
+    const [appMod, fsMod] = await Promise.all([
+      import("https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js"),
+      import("https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js"),
+    ]);
+    initializeApp = appMod.initializeApp; F = fsMod;
+  } catch (e) { initializeApp = null; F = null; }
+}
 
 // ============================================================
 // SETTINGS: the shared Firebase project (same one as Mangia Mangia).
@@ -327,7 +336,7 @@ const DEFAULT_SPOTS = [
   { id: "canal-winchester", name: "Canal Winchester, OH", lat: 39.8437, lon: -82.8046, createdAt: 1 },
   { id: "columbus", name: "Columbus, OH", lat: 39.9612, lon: -82.9988, createdAt: 2 },
 ];
-(() => {
+(async () => {
 "use strict";
 const $ = id => document.getElementById(id);
 const HOUR = 3600000, DAY = 86400000;
@@ -515,10 +524,79 @@ async function getJSON(url, ms = 9000) {
 }
 function parseLocal(s, off) { const [d, tm = "00:00"] = s.split("T"); const [y, mo, da] = d.split("-").map(Number); const [h, mi] = tm.split(":").map(Number); return Date.UTC(y, mo - 1, da, h, mi) - off * 1000; }
 
+async function modelsFor(spot) {
+  try {
+    const mods = ["gfs_seamless", "ecmwf_ifs025", "gem_seamless"];
+    const mm = await getJSON(`https://api.open-meteo.com/v1/forecast?latitude=${spot.lat}&longitude=${spot.lon}&daily=temperature_2m_max,precipitation_sum&models=${mods.join(",")}&forecast_days=10&timezone=auto&temperature_unit=fahrenheit&precipitation_unit=inch`);
+    return mm.daily.time.map((d, i) => ({
+      t: parseLocal(d, mm.utc_offset_seconds) + 12 * HOUR,
+      his: mods.map(m => mm.daily[`temperature_2m_max_${m}`]?.[i]).filter(v => v != null),
+      rains: mods.map(m => mm.daily[`precipitation_sum_${m}`]?.[i]).filter(v => v != null)
+    }));
+  } catch { return null; }
+}
+
+// National Weather Service extras (US only). Each piece re-draws the page when it arrives;
+// none of them hold up the forecast. The forecaster discussion waits until someone opens it.
+const nwsPoint = new Map();
+async function nwsExtras(fc, spot) {
+  const redraw = () => { if (forecast === fc) { render(); store.set("ct.fc." + spot.id, fc); } };
+  let P;
+  try {
+    const key = spot.lat.toFixed(4) + "," + spot.lon.toFixed(4);
+    P = nwsPoint.get(key) || store.get("ct.nws." + key, null);
+    if (!P) {
+      const pt = await getJSON(`https://api.weather.gov/points/${key}`);
+      P = { cwa: pt.properties.cwa, grid: pt.properties.forecastGridData,
+            city: pt.properties.relativeLocation?.properties?.city || "", state: pt.properties.relativeLocation?.properties?.state || "" };
+      store.set("ct.nws." + key, P);
+    }
+    nwsPoint.set(key, P);
+    fc.nws = P;
+  } catch { return; }   // outside the US or the weather service is down
+  getJSON(`https://api.weather.gov/alerts/active?point=${spot.lat.toFixed(4)},${spot.lon.toFixed(4)}`).then(a => {
+    fc.alerts = (a.features || []).map(f => f.properties).map(p => ({ event: p.event, severity: p.severity, headline: p.headline, description: [p.description, p.instruction].filter(Boolean).join("\n\n") }));
+    redraw();
+  }).catch(() => {});
+  getJSON(P.grid).then(g => {
+    const vals = g.properties?.snowfallAmount?.values || [];
+    const now = Date.now(), end = now + 72 * HOUR;
+    let mm = 0;
+    for (const v of vals) {
+      const [startS, dur] = v.validTime.split("/");
+      const start = Date.parse(startS);
+      const hrs = (() => { const m = /P(?:(\d+)D)?T?(?:(\d+)H)?/.exec(dur) || []; return (+(m[1] || 0)) * 24 + (+(m[2] || 0)) || 1; })();
+      const stop = start + hrs * HOUR;
+      const overlap = Math.max(0, Math.min(stop, end) - Math.max(start, now));
+      if (overlap > 0) mm += (v.value || 0) * overlap / (hrs * HOUR);
+    }
+    fc.nwsSnow72 = mm / 25.4;
+    redraw();
+  }).catch(() => {});
+  if ($("afd").open) loadDiscussion(fc);
+}
+async function loadDiscussion(fc) {
+  if (!fc || fc.discussion || fc.mode !== "live" || !fc.nws || fc.afdLoading) return;
+  fc.afdLoading = true;
+  $("afdbody").innerHTML = `<p class="hint" style="margin-top:8px">Loading the forecaster's notes…</p>`;
+  try {
+    const P = fc.nws;
+    const l = await getJSON(`https://api.weather.gov/products/types/AFD/locations/${P.cwa}`);
+    const first = (l["@graph"] || [])[0];
+    if (first) {
+      const prod = await getJSON(first["@id"]);
+      fc.discussion = { office: `${P.cwa} (${P.city}${P.state ? ", " + P.state : ""})`, issued: Date.parse(prod.issuanceTime), text: prod.productText };
+    }
+  } catch {}
+  fc.afdLoading = false;
+  if (forecast === fc) render();
+}
+$("afd").addEventListener("toggle", () => { if ($("afd").open) loadDiscussion(forecast); });
+
 async function liveForecast(spot) {
   const hv = "temperature_2m,apparent_temperature,precipitation_probability,precipitation,snowfall,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,surface_pressure,uv_index,is_day";
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${spot.lat}&longitude=${spot.lon}&hourly=${hv}&daily=sunrise,sunset&forecast_days=10&past_days=1&timezone=auto&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch`;
-  const om = await getJSON(url);
+  const [om, models] = await Promise.all([getJSON(url), modelsFor(spot)]);
   const off = om.utc_offset_seconds, H = om.hourly;
   const hours = H.time.map((s, i) => ({
     t: parseLocal(s, off), temp: H.temperature_2m[i], feels: H.apparent_temperature[i],
@@ -529,46 +607,9 @@ async function liveForecast(spot) {
   const dIdx = om.daily.time.map((s, i) => i);
   const suns = dIdx.map(i => ({ rise: parseLocal(om.daily.sunrise[i], off), set: parseLocal(om.daily.sunset[i], off) }))
     .filter(s => s.set > Date.now() - DAY).slice(0, 10);
-  const fc = { mode: "live", lat: spot.lat, lon: spot.lon, off, hours, suns, alerts: [], discussion: null, nwsSnow72: null, updated: Date.now() };
+  const fc = { mode: "live", lat: spot.lat, lon: spot.lon, off, hours, suns, alerts: [], discussion: null, nwsSnow72: null, models, updated: Date.now() };
 
-  // NWS extras (US only) — failures here never block the forecast
-  try {
-    const pt = await getJSON(`https://api.weather.gov/points/${spot.lat.toFixed(4)},${spot.lon.toFixed(4)}`);
-    const P = pt.properties;
-    const tasks = [];
-    tasks.push(getJSON(`https://api.weather.gov/alerts/active?point=${spot.lat.toFixed(4)},${spot.lon.toFixed(4)}`).then(a => {
-      fc.alerts = (a.features || []).map(f => f.properties).map(p => ({ event: p.event, severity: p.severity, headline: p.headline, description: [p.description, p.instruction].filter(Boolean).join("\n\n") }));
-    }).catch(() => {}));
-    tasks.push(getJSON(P.forecastGridData).then(g => {
-      const vals = g.properties?.snowfallAmount?.values || [];
-      const now = Date.now(), end = now + 72 * HOUR;
-      let mm = 0;
-      for (const v of vals) {
-        const [startS, dur] = v.validTime.split("/");
-        const start = Date.parse(startS);
-        const hrs = (() => { const m = /P(?:(\d+)D)?T?(?:(\d+)H)?/.exec(dur) || []; return (+(m[1] || 0)) * 24 + (+(m[2] || 0)) || 1; })();
-        const stop = start + hrs * HOUR;
-        const overlap = Math.max(0, Math.min(stop, end) - Math.max(start, now));
-        if (overlap > 0) mm += (v.value || 0) * overlap / (hrs * HOUR);
-      }
-      fc.nwsSnow72 = mm / 25.4;
-    }).catch(() => {}));
-    tasks.push(getJSON(`https://api.weather.gov/products/types/AFD/locations/${P.cwa}`).then(async l => {
-      const first = (l["@graph"] || [])[0]; if (!first) return;
-      const prod = await getJSON(first["@id"]);
-      fc.discussion = { office: `${P.cwa} (${P.relativeLocation?.properties?.city || ""}${P.relativeLocation?.properties?.state ? ", " + P.relativeLocation.properties.state : ""})`, issued: Date.parse(prod.issuanceTime), text: prod.productText };
-    }).catch(() => {}));
-    await Promise.all(tasks);
-  } catch { /* outside the US or NWS down */ }
-  try {
-    const mods = ["gfs_seamless", "ecmwf_ifs025", "gem_seamless"];
-    const mm = await getJSON(`https://api.open-meteo.com/v1/forecast?latitude=${spot.lat}&longitude=${spot.lon}&daily=temperature_2m_max,precipitation_sum&models=${mods.join(",")}&forecast_days=10&timezone=auto&temperature_unit=fahrenheit&precipitation_unit=inch`);
-    fc.models = mm.daily.time.map((d, i) => ({
-      t: parseLocal(d, mm.utc_offset_seconds) + 12 * HOUR,
-      his: mods.map(m => mm.daily[`temperature_2m_max_${m}`]?.[i]).filter(v => v != null),
-      rains: mods.map(m => mm.daily[`precipitation_sum_${m}`]?.[i]).filter(v => v != null)
-    }));
-  } catch { fc.models = null; }
+  // the 3-model comparison is fetched alongside (started below, in loadForecast)
   return fc;
 }
 
@@ -585,7 +626,20 @@ async function loadForecast(spot) {
   if (my !== loadToken) return;
   forecast = fc;
   render();
-  if (fc.mode === "live" && !fc.cached) { initRadar(spot); syncLog(fc, spot); } else radarPlaceholder();
+  if (fc.mode === "live" && !fc.cached) { nwsExtras(fc, spot); radarWhenVisible(spot); syncLog(fc, spot); } else radarPlaceholder();
+}
+
+// radar only loads once its card scrolls into view
+let radarObserver = null, radarSpot = null;
+function radarWhenVisible(spot) {
+  radarSpot = spot;
+  if (map) { initRadar(spot); return; }
+  if (!("IntersectionObserver" in window)) { initRadar(spot); return; }
+  if (radarObserver) return;
+  radarObserver = new IntersectionObserver(entries => {
+    if (entries.some(e => e.isIntersecting)) { radarObserver.disconnect(); radarObserver = null; initRadar(radarSpot); }
+  }, { rootMargin: "300px" });
+  radarObserver.observe($("radar"));
 }
 
 function agoText(t) { const m = Math.round((Date.now() - t) / 60000); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; }
@@ -656,10 +710,10 @@ function render() {
   const D = derive(fc), c = D.cur, off = fc.off;
 
   const modeEl = $("mode");
-  modeEl.textContent = fc.cached ? "offline" : fc.mode === "live" ? "live" : "sample data";
+  modeEl.textContent = fc.updating ? "updating…" : fc.cached ? "offline" : fc.mode === "live" ? "live" : "sample data";
   modeEl.className = "mode" + (fc.mode === "live" && !fc.cached ? " live" : "");
   const banner = $("banner");
-  banner.hidden = fc.mode === "live" && !fc.cached;
+  banner.hidden = fc.updating || (fc.mode === "live" && !fc.cached);
   banner.textContent = fc.cached
     ? `No connection right now. Showing the forecast saved ${agoText(fc.updated)}.`
     : "Couldn't reach the weather services, so this is a sample forecast, not real data. Reopen the app to try again.";
@@ -682,7 +736,7 @@ function render() {
     <div class="now">
       <div class="temp">${r0(c.temp)}<sup>°F</sup></div>
       <div class="cond">
-        <button class="buddy" id="buddy" type="button" aria-label="Tap the beaver for a beaver fact"><img class="gear" src="gear-${gear}.png" alt="Mia's beaver dressed for the weather: ${GEAR[gear]}" width="112" height="139"></button>
+        <button class="buddy" id="buddy" type="button" aria-label="Tap the beaver for a beaver fact"><img class="gear" src="gear-${gear}.webp" alt="Mia's beaver dressed for the weather: ${GEAR[gear]}" width="112" height="139" decoding="async"></button>
         <span class="gear-tag">${GEAR[gear]}</span>
         <strong>${icon(ic, 26)} ${label}</strong><span>Feels like ${r0(c.feels)}° · H ${r0(today.hi)}° L ${r0(today.lo)}°</span>
       </div>
@@ -707,9 +761,11 @@ function render() {
   const disc = fc.discussion;
   $("afdbody").innerHTML = disc
     ? `<p class="hint" style="margin-top:8px">NWS ${esc(disc.office)} · issued ${fmtClock(disc.issued, off)} ${dayName(disc.issued, off)}</p><div class="afdtext">${esc(disc.text)}</div>`
+    : fc.afdLoading ? `<p class="hint" style="margin-top:8px">Loading the forecaster's notes…</p>`
+    : (fc.mode === "live" && fc.nws) ? `<p class="hint" style="margin-top:8px">Open to read the latest notes from the National Weather Service.</p>`
     : `<p class="hint" style="margin-top:8px">Forecaster discussions come from the National Weather Service, so they're only available for US spots.</p>`;
 
-  $("updated").textContent = `Updated ${fmtClock(fc.updated, off)}${fc.mode === "sample" ? " · sample data" : ""}`;
+  $("updated").textContent = fc.updating ? "Getting the latest forecast…" : `Updated ${fmtClock(fc.updated, off)}${fc.mode === "sample" ? " · sample data" : ""}`;
 }
 
 function renderSnow(D, off) {
@@ -1336,20 +1392,27 @@ function applySpots(list) {
 
 // first frame: last saved forecast (or a sample) so the page is never blank, then fetch live data
 spots = store.get("ct.spots", []);
-forecast = store.get("ct.fc." + activeSpot().id, null) || sampleForecast(activeSpot());
-if (forecast.mode === "live") forecast = { ...forecast, cached: Date.now() - forecast.updated > 30 * 60000 };
+if (!spots.length) spots = DEFAULT_SPOTS.map(d => ({ ...d }));   // first visit: start on the home spot, not a placeholder
+{
+  const saved = store.get("ct.fc." + activeSpot().id, null);
+  forecast = saved && saved.mode === "live" && Date.now() - saved.updated < 2 * DAY
+    ? { ...saved, updating: true, afdLoading: false }
+    : { ...sampleForecast(activeSpot()), updating: true };
+}
 render(); radarPlaceholder();
 loadForecast(activeSpot());
 
+await loadFirebase();
 try {
   const app = initializeApp(FIREBASE);
   try { fs = F.initializeFirestore(app, { localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }) }); }
   catch { fs = F.initializeFirestore(app, {}); }
 } catch { fs = null; }
-if (!fs) applySpots(store.get("ct.spots", []));
+const savedSpots = () => { const l = store.get("ct.spots", []); return l.length ? l : spots; };
+if (!fs) applySpots(savedSpots());
 else {
   let seeded = false;
-  applySpots(store.get("ct.spots", []));
+  applySpots(savedSpots());
   F.onSnapshot(F.query(F.collection(fs, "weather_spots"), F.orderBy("createdAt")), snap => {
     const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => isFinite(s.lat) && isFinite(s.lon) && s.name);
     if (!list.length && !snap.metadata.fromCache && !seeded) {
