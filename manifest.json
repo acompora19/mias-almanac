@@ -1,0 +1,13 @@
+{
+  "name": "Mia's Almanac",
+  "short_name": "Mia's Almanac",
+  "description": "Our weather: forecast, snow totals, fishing rating and radar.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#EDE3CC",
+  "theme_color": "#2E6A5F",
+  "icons": [
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
