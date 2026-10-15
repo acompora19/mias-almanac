@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Lets the notifier (notify/notify.mjs) import almanac-core.js"
+}

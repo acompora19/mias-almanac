@@ -1,0 +1,48 @@
+name: Weather notifications
+
+# Checks the weather every 30 minutes and pushes alerts through ntfy.
+# Run it by hand from the Actions tab ("Run workflow") to send a test message.
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "Send a test notification"
+        type: boolean
+        default: true
+
+concurrency:
+  group: notify
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Remember what was already sent
+        uses: actions/cache/restore@v4
+        with:
+          path: notify-state.json
+          key: notify-state-${{ github.run_id }}
+          restore-keys: notify-state-
+
+      - name: Check the weather and send
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          STATE_FILE: notify-state.json
+        run: node notify/notify.mjs ${{ inputs.test && '--test' || '' }}
+
+      - name: Save what was sent
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: notify-state.json
+          key: notify-state-${{ github.run_id }}
