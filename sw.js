@@ -1,6 +1,6 @@
 // Mia's Almanac service worker: caches the app so it opens with no signal. The last forecast is kept by the page itself.
-const VERSION = "ma-v7";
-const SHELL = ["./", "index.html", "beaver.png", "icon-64.png", "icon-180.png", "icon-512.png", "manifest.json"];
+const VERSION = "ma-v8";
+const SHELL = ["./", "index.html", "beaver.png", "beaver-portrait.png", "icon-64.png", "icon-180.png", "icon-512.png", "manifest.json"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", (e) => {
