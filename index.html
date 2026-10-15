@@ -55,7 +55,11 @@ button{cursor:pointer}
 /* masthead: an almanac title block */
 .mast{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0 10px;border-bottom:3px double var(--line);text-align:center}
 .brandrow{display:flex;align-items:center;gap:10px}
-.logo{width:52px;height:52px;flex:none}
+.beaver-art{display:block;width:100%;height:100%;background:var(--ink);
+  -webkit-mask:url("beaver.png") center/contain no-repeat;mask:url("beaver.png") center/contain no-repeat}
+.logo{width:54px;height:54px;flex:none;border-radius:50%;border:2px solid var(--ink);box-shadow:inset 0 0 0 3px var(--surface),inset 0 0 0 4px var(--ink);
+  background:var(--surface);overflow:hidden;display:block;position:relative}
+.logo .beaver-art{position:absolute;width:230%;height:230%;left:-78%;top:6%;-webkit-mask-position:center top;mask-position:center top}
 .brand{font-family:var(--f-display);font-size:34px;line-height:1;letter-spacing:.01em}
 .mast .sub{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
 .mast .sub .where{font-family:var(--f-display);font-style:italic;font-size:17px;color:var(--muted)}
@@ -104,8 +108,7 @@ button{cursor:pointer}
 .now .temp sup{font-size:.34em;vertical-align:top;position:relative;top:.2em;margin-left:2px}
 .now .cond{display:flex;flex-direction:column;gap:2px;min-width:0}
 .now .cond strong{font-family:var(--f-display);font-weight:400;font-size:26px;line-height:1.1;display:flex;align-items:center;gap:6px}
-.buddy{border:0;background:transparent;padding:0;width:92px;height:92px;align-self:flex-start;-webkit-tap-highlight-color:transparent;transform-origin:50% 90%}
-.buddy svg{width:100%;height:100%;display:block;overflow:visible}
+.buddy{border:0;background:transparent;padding:0;width:118px;height:106px;align-self:flex-start;-webkit-tap-highlight-color:transparent;transform-origin:50% 90%;cursor:pointer}
 .buddy.wiggle{animation:wiggle .5s ease}
 @keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-6deg)}75%{transform:rotate(6deg)}}
 .fact-bubble{margin:0;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:10px 12px;font-size:14px;position:relative}
@@ -233,67 +236,13 @@ footer{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:
     <symbol id="i-snow" viewBox="0 0 24 24"><path d="M7 14.5h10.2a4.1 4.1 0 0 0 .4-8.2A5.6 5.6 0 0 0 6.6 6 4.3 4.3 0 0 0 7 14.5z" fill="var(--muted)"/><g fill="var(--snow)"><circle cx="7.5" cy="18" r="1.4"/><circle cx="12" cy="20.5" r="1.4"/><circle cx="16.5" cy="18" r="1.4"/></g></symbol>
     <symbol id="i-storm" viewBox="0 0 24 24"><path d="M7 14h10.2a4.1 4.1 0 0 0 .4-8.2A5.6 5.6 0 0 0 6.6 5.5 4.3 4.3 0 0 0 7 14z" fill="var(--muted)"/><path d="M12.5 13l-3 5h3l-1.5 4.5 4.5-6h-3l1.5-3.5z" fill="var(--warm)"/></symbol>
     <symbol id="i-fog" viewBox="0 0 24 24"><g stroke="var(--muted)" stroke-width="2" stroke-linecap="round"><path d="M4 9h16M6 13h12M4 17h16"/></g></symbol>
-<pattern id="bv-hatch" patternUnits="userSpaceOnUse" width="3.2" height="3.2" patternTransform="rotate(35)"><line x1="0" y1="0" x2="0" y2="3.2" stroke="#3A2717" stroke-width=".8"/></pattern>
-<pattern id="bv-xhatch" patternUnits="userSpaceOnUse" width="3" height="3" patternTransform="rotate(-30)"><path d="M0 0V3M0 0H3" stroke="#3A2717" stroke-width=".8"/></pattern>
-<pattern id="bv-fine" patternUnits="userSpaceOnUse" width="2.4" height="2.4" patternTransform="rotate(70)"><line x1="0" y1="0" x2="0" y2="2.4" stroke="#3A2717" stroke-width=".55"/></pattern>
-<clipPath id="bv-body"><path d="M54 37 C40 43 30 62 32 84 C33 97 44 105 58 105 C71 105 79 97 78 83 C77 70 73 60 68 51 Z"/></clipPath>
-<clipPath id="bv-head"><path d="M49 40 C47 26 57 15 70 16 C81 17 89 23 93 29 C96 34 95 40 90 42 C83 45 73 48 64 50 C56 51 50 47 49 40 Z"/></clipPath>
-<symbol id="beaver" viewBox="0 0 120 120">
-  <!-- ground shadow -->
-  <path d="M6 110 Q60 104 112 110" fill="none" stroke="#3A2717" stroke-width="1" opacity=".5"/>
-  <path d="M14 113 Q60 108 104 113" fill="none" stroke="#3A2717" stroke-width=".7" opacity=".35"/>
-  <!-- tail: flat paddle, cross-hatched scales -->
-  <g transform="rotate(-8 24 101)">
-    <ellipse cx="22" cy="101" rx="21" ry="7" fill="#6B4A2E"/>
-    <ellipse cx="22" cy="101" rx="21" ry="7" fill="url(#bv-xhatch)"/>
-    <ellipse cx="22" cy="101" rx="21" ry="7" fill="none" stroke="#2A1C10" stroke-width="1.6"/>
-  </g>
-  <!-- body: tinted wash, light hatch, darker shading on the back -->
-  <path d="M54 37 C40 43 30 62 32 84 C33 97 44 105 58 105 C71 105 79 97 78 83 C77 70 73 60 68 51 Z" fill="#B08155"/>
-  <g clip-path="url(#bv-body)">
-    <rect x="20" y="30" width="70" height="80" fill="url(#bv-fine)" opacity=".55"/>
-    <ellipse cx="34" cy="78" rx="16" ry="34" fill="url(#bv-xhatch)" opacity=".9"/>
-    <ellipse cx="66" cy="102" rx="22" ry="8" fill="url(#bv-hatch)"/>
-    <path d="M70 58 C76 72 76 88 70 98" fill="none" stroke="#E2C59E" stroke-width="5" opacity=".55"/>
-  </g>
-  <path d="M54 37 C40 43 30 62 32 84 C33 97 44 105 58 105 C71 105 79 97 78 83 C77 70 73 60 68 51 Z" fill="none" stroke="#2A1C10" stroke-width="1.8" stroke-linejoin="round"/>
-  <!-- fur strokes along the back -->
-  <path d="M44 52 q-3 5 -3 10 M38 66 q-2 5 -1 10 M37 82 q0 5 2 9" fill="none" stroke="#2A1C10" stroke-width=".9" stroke-linecap="round"/>
-  <!-- hind foot -->
-  <path d="M56 104 C62 100 76 100 82 104 C84 106 80 108 74 108 L58 108 Z" fill="#6B4A2E" stroke="#2A1C10" stroke-width="1.4" stroke-linejoin="round"/>
-  <path d="M77 104 v3 M73 104 v3.5 M69 104 v3.5" stroke="#2A1C10" stroke-width=".7"/>
-  <!-- head -->
-  <path d="M49 40 C47 26 57 15 70 16 C81 17 89 23 93 29 C96 34 95 40 90 42 C83 45 73 48 64 50 C56 51 50 47 49 40 Z" fill="#B08155"/>
-  <g clip-path="url(#bv-head)">
-    <rect x="45" y="12" width="52" height="42" fill="url(#bv-fine)" opacity=".5"/>
-    <ellipse cx="56" cy="40" rx="10" ry="14" fill="url(#bv-hatch)" opacity=".85"/>
-    <ellipse cx="80" cy="44" rx="14" ry="5" fill="url(#bv-hatch)" opacity=".6"/>
-    <path d="M70 22 C80 22 88 26 91 31" fill="none" stroke="#E2C59E" stroke-width="3.5" opacity=".6"/>
-  </g>
-  <path d="M49 40 C47 26 57 15 70 16 C81 17 89 23 93 29 C96 34 95 40 90 42 C83 45 73 48 64 50 C56 51 50 47 49 40 Z" fill="none" stroke="#2A1C10" stroke-width="1.8" stroke-linejoin="round"/>
-  <!-- ear -->
-  <path d="M57 22 C55 16 61 13 64 17" fill="#8A6040" stroke="#2A1C10" stroke-width="1.4"/>
-  <!-- eye with highlight -->
-  <circle cx="76" cy="26.5" r="2.4" fill="#1A120A"/><circle cx="76.8" cy="25.7" r=".7" fill="#F6EEDB"/>
-  <path d="M73 23.5 q3 -1.6 6 0" fill="none" stroke="#2A1C10" stroke-width=".8"/>
-  <!-- nose -->
-  <path d="M91 28.5 C94 28 96 30 95.5 32.5 C94.5 34 92 34 91 32.5 Z" fill="#1A120A"/>
-  <!-- whiskers -->
-  <path d="M89 36 l9 -1.5 M89 37.5 l9.5 1 M88 39 l8 3" stroke="#2A1C10" stroke-width=".6" stroke-linecap="round"/>
-  <!-- the famous orange teeth -->
-  <path d="M84.5 41.5 h5 v6 q-2.5 1.5 -5 0 Z" fill="#E7A34A" stroke="#2A1C10" stroke-width="1"/>
-  <line x1="87" y1="41.8" x2="87" y2="47.6" stroke="#2A1C10" stroke-width=".6"/>
-  <!-- front paws, held at the chest -->
-  <path d="M68 58 C74 58 80 60 82 64 C83 67 79 68 76 66 C73 64 70 63 67 63 Z" fill="#8A6040" stroke="#2A1C10" stroke-width="1.3" stroke-linejoin="round"/>
-  <path d="M79 63 l2 2 M76 63.5 l1.5 2.2" stroke="#2A1C10" stroke-width=".6"/>
-</symbol>
     <symbol id="i-fish" viewBox="0 0 28 16"><path d="M2 8c3.5-5.5 11-6.5 17-2.2L25.5 1.5v13L19 10.2C13 14.5 5.5 13.5 2 8z"/><circle cx="7" cy="7" r="1.3" fill="var(--surface)"/></symbol>
   </defs>
 </svg>
 
 <div class="wrap">
   <header class="mast">
-    <div class="brandrow"><svg class="logo" viewBox="0 0 120 120" aria-hidden="true"><defs><clipPath id="logo-clip"><circle cx="60" cy="60" r="50"/></clipPath></defs><circle cx="60" cy="60" r="57" fill="#F6EEDB" stroke="#2A1C10" stroke-width="3"/><circle cx="60" cy="60" r="50" fill="none" stroke="#2A1C10" stroke-width="1.2"/><g clip-path="url(#logo-clip)"><path d="M14 98 q8 -3 16 0 t16 0 t16 0 t16 0 t16 0 t16 0 M18 106 q8 -3 16 0 t16 0 t16 0 t16 0 t16 0" fill="none" stroke="#2E6A5F" stroke-width="2"/><use href="#beaver" x="6" y="0" width="108" height="108"/></g></svg><div class="brand">Mia's Almanac</div></div>
+    <div class="brandrow"><span class="logo" aria-hidden="true"><span class="beaver-art"></span></span><div class="brand">Mia's Almanac</div></div>
     <div class="sub"><span class="where" id="where">—</span><span class="mode" id="mode">sample</span></div>
   </header>
 
@@ -713,7 +662,7 @@ function render() {
     <div class="now">
       <div class="temp">${r0(c.temp)}<sup>°F</sup></div>
       <div class="cond">
-        <button class="buddy" id="buddy" type="button" aria-label="Tap the beaver for a beaver fact">${beaverOutfit(c)}</button>
+        <button class="buddy" id="buddy" type="button" aria-label="Tap the beaver for a beaver fact"><span class="beaver-art"></span></button>
         <strong>${icon(ic, 26)} ${label}</strong><span>Feels like ${r0(c.feels)}° · H ${r0(today.hi)}° L ${r0(today.lo)}°</span>
       </div>
     </div>
@@ -870,41 +819,7 @@ function renderOut(D, fc) {
     </div>`;
 }
 
-/* ---------- Mia's beaver: dressed for the weather, tap for a fact ---------- */
-function beaverOutfit(h) {
-  const snowy = (h.code >= 71 && h.code <= 77) || h.code === 85 || h.code === 86;
-  const wet = !snowy && h.code >= 51;
-  const cold = snowy || h.temp <= 38;
-  const sunny = !wet && !cold && h.code <= 1 && h.isDay && h.temp >= 72;
-  const ink = 'stroke="#2A1C10" stroke-width="1.5" stroke-linejoin="round"';
-  let back = "", front = "";
-  if (wet) {
-    // an old black umbrella, held in her front paws
-    back = `<path d="M28 0 Q80 -48 132 0 Q123 -6 115 0 Q106 -6 97 0 Q89 -6 80 0 Q71 -6 63 0 Q54 -6 45 0 Q37 -6 28 0Z" fill="var(--accent)" ${ink}/>
-      <path d="M28 0 Q80 -48 132 0Z" fill="url(#bv-hatch)" opacity=".35"/>
-      <path d="M80 -24 V0 M80 -24 Q62 -16 45 0 M80 -24 Q98 -16 115 0" fill="none" stroke="#2A1C10" stroke-width=".8"/>`;
-    front = `<path d="M80 0 V66 q0 6 -5 6" fill="none" stroke="#2A1C10" stroke-width="2.6" stroke-linecap="round"/>
-      <g stroke="#3B6E8F" stroke-width="1.3" stroke-linecap="round"><path d="M16 14 l-2 6 M8 40 l-2 6 M24 60 l-2 6 M126 20 l-2 6 M120 46 l-2 6"/></g>`;
-  } else if (cold) {
-    // knitted cap pulled snug over the crown, with a bobble, and a long striped muffler
-    front = `<path d="M50 31 Q49 9 68 6 Q85 4 89 19 Q69 14 50 31Z" fill="var(--warm)" ${ink}/>
-      <path d="M57 21 l3 -9 M63 16 l2 -9 M70 13 l1 -8 M77 13 l1 -8 M83 15 l2 -7" stroke="#2A1C10" stroke-width=".7" opacity=".7"/>
-      <path d="M49 31 Q68 12 90 18 L91 24 Q69 19 51 37Z" fill="#F3E6CC" ${ink}/>
-      <path d="M56 30 l1 3 M62 26 l1 3 M69 23 l1 3 M76 22 l0 3 M83 22 l0 3" stroke="#2A1C10" stroke-width=".7" opacity=".6"/>
-      <circle cx="66" cy="4" r="5.5" fill="#F3E6CC" ${ink}/>
-      <path d="M50 44 Q62 54 74 47 L75 53 Q62 61 49 51Z" fill="var(--warm)" ${ink}/>
-      <path d="M52 49 L45 72 L52 74 L57 52Z" fill="var(--warm)" ${ink}/>
-      <path d="M57 49 l-1 7 M64 51 l0 7 M70 49 l1 6 M48 62 l6 2" stroke="#F3E6CC" stroke-width="2"/>
-      <path d="M45 72 l-1 4 M48 73 l-1 4 M51 74 l0 4" stroke="#2A1C10" stroke-width=".9"/>
-      ${snowy ? `<g fill="#fff" stroke="#2A1C10" stroke-width=".7"><circle cx="16" cy="18" r="2.6"/><circle cx="110" cy="8" r="2.2"/><circle cx="10" cy="58" r="2.2"/><circle cx="112" cy="54" r="2.6"/><circle cx="30" cy="38" r="1.8"/></g>` : ""}`;
-  } else if (sunny) {
-    // round spectacles, darkened for the sun
-    front = `<circle cx="77" cy="26.5" r="5.4" fill="#1F2A30" stroke="#2A1C10" stroke-width="1.3"/>
-      <path d="M74.5 24 l3 -1.2" stroke="#F6EEDB" stroke-width="1" opacity=".7"/>
-      <path d="M71.6 26 L60 23.5" stroke="#2A1C10" stroke-width="1.3"/>`;
-  }
-  return `<svg viewBox="-4 -26 140 150" aria-hidden="true">${back}<use href="#beaver" width="120" height="120"/>${front}</svg>`;
-}
+/* ---------- Mia's beaver (her own drawing): tap for a beaver fact ---------- */
 const BEAVER_FACTS = [
   "Beaver teeth are orange! Iron in the enamel makes them extra strong.",
   "Beaver teeth never stop growing, so beavers keep chewing to keep them short.",
