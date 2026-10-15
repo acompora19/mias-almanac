@@ -1198,6 +1198,9 @@ if (!spots.length) spots = DEFAULT_SPOTS.map(d => ({ ...d }));   // first visit:
 }
 render(); radarPlaceholder();
 loadForecast(activeSpot());
+// "See radar" button in a notification opens the app at #radar
+function goToRadar() { if (location.hash === "#radar") setTimeout(() => $("radar").scrollIntoView({ behavior: "smooth", block: "center" }), 350); }
+goToRadar(); addEventListener("hashchange", goToRadar);
 
 await loadFirebase();
 try {
