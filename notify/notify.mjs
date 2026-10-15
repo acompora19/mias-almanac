@@ -60,8 +60,8 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
   }
   for (const [id, exp] of Object.entries(state.alerts)) if (exp < now - DAY) delete state.alerts[id];
 
-  // ---------- 2. morning summary (6:30 to 9 AM, once a day) ----------
-  if (hourNow >= 6.5 && hourNow < 9 && state.morning !== today) {
+  // ---------- 2. morning summary (from 5:30 AM, once a day) ----------
+  if (hourNow >= 5.4 && hourNow < 9 && state.morning !== today) {
     const d0 = D.days[0];
     const rest = hours.filter(h => h.t >= now && dayKey(h.t, off) === today);
     const wetHour = rest.find(h => h.pop >= 50 && h.precip >= 0.02);

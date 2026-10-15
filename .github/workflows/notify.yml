@@ -5,6 +5,9 @@ name: Weather notifications
 on:
   schedule:
     - cron: "7,37 * * * *"
+    # 5:28 AM Eastern for the morning summary (9:28 UTC in summer, 10:28 UTC in winter;
+    # the off-season run lands at 4:28 or 6:28 and the script skips it or sees it was already sent)
+    - cron: "28 9,10 * * *"
   workflow_dispatch:
     inputs:
       test:
