@@ -6,7 +6,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import {
-  HOUR, DAY, LT, fmtClock, fmtHour, dayKey, dayName, r0,
+  HOUR, DAY, LT, fmtClock, fmtHour, dayKey, dayName, r0, moon,
   parseOpenMeteo, derive, fishDay, gearFor, wearFor, GEAR,
 } from "../almanac-core.js";
 
@@ -14,7 +14,7 @@ export const HOME = { name: "Canal Winchester, OH", lat: 39.8437, lon: -82.8046 
 export const APP_URL = "https://acompora19.github.io/mias-almanac/";
 const QUIET = { from: 21.5, to: 6.5 };   // no non-urgent pushes 9:30 PM to 6:30 AM
 // ntfy turns these tag names into the emoji at the front of the title
-const EMOJI = { morning: "sunny", rain: "umbrella", snow: "snowflake", fish: "fishing_pole_and_fish", severe: "rotating_light", advisory: "warning", test: "white_check_mark" };
+const EMOJI = { frost: "cold_face", air: "mask", moon: "full_moon", meteor: "comet", aurora: "milky_way", morning: "sunny", rain: "umbrella", snow: "snowflake", fish: "fishing_pole_and_fish", severe: "rotating_light", advisory: "warning", test: "white_check_mark" };
 // ntfy priority: 1 min, 2 low (silent), 3 default, 4 high, 5 max (can break through Do Not Disturb on Android)
 const PRI = { min: 1, low: 2, normal: 3, high: 4, max: 5 };
 // latest radar image from the Wilmington, OH radar that covers central Ohio
@@ -68,7 +68,8 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     if (quiet && sev !== "Extreme" && sev !== "Severe") continue;   // minor advisories wait for morning
     messages.push({
       title: p.event,
-      message: `${p.headline || ""}\n\n${(p.description || "").replace(/\s+/g, " ").slice(0, 600)}`.trim(),
+      message: (`${p.headline || ""}\n\n${(p.description || "").replace(/\s+/g, " ").slice(0, 600)}`.trim()) +
+        (/frost|freeze/i.test(p.event) ? `\n\n${frostTips(/hard freeze/i.test(p.event) ? 26 : /freeze/i.test(p.event) ? 30 : 34)}` : ""),
       priority: /tornado warning/i.test(p.event) || sev === "Extreme" ? PRI.max : sev === "Severe" ? PRI.high : PRI.normal,
       tags: [sev === "Extreme" || sev === "Severe" ? EMOJI.severe : EMOJI.advisory],
       attach: /thunderstorm|tornado|flood|rain|wind/i.test(p.event) ? RADAR_IMG : undefined,
@@ -147,8 +148,148 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     state.fish = today;
   }
 
+  // ---------- 5. frost and freeze (evening, once a night) ----------
+  const nwsFrost = alerts.some(a => /frost|freeze/i.test(a.event));
+  if (hourNow >= 17 && hourNow < 21 && state.frost !== today && !nwsFrost) {
+    const tonight = hours.filter(h => h.t > now && h.t < now + 16 * HOUR);
+    const low = Math.min(...tonight.map(h => h.temp));
+    if (low <= 36) {
+      const year = LT(now, off).getUTCFullYear();
+      const first = LT(now, off).getUTCMonth() >= 7 && state.firstFrostYear !== year;
+      const kind = low <= 28 ? "Hard freeze" : low <= 32 ? "Freeze" : "Frost";
+      messages.push({
+        title: `${first ? "First frost of the season: " : ""}${kind} tonight, low ${r0(low)}°`,
+        message: `${place.name} drops to about ${r0(low)}° tonight.\n\n${frostTips(low)}`,
+        priority: low <= 28 ? PRI.high : PRI.normal, tags: [EMOJI.frost], buttons: ["app"],
+      });
+      if (first) state.firstFrostYear = year;
+    }
+    state.frost = today;
+  }
+
+  // ---------- 6. air quality (once a day, when it turns unhealthy) ----------
+  if (!quiet && state.airDay !== today) {
+    try {
+      const aq = await getJSON(fetchFn, `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${place.lat}&longitude=${place.lon}&hourly=us_aqi&timezone=auto&forecast_days=2`);
+      const next = aq.hourly.time.map((t, i) => ({ t: parseLocalTime(t, off), aqi: aq.hourly.us_aqi[i] }))
+        .filter(h => h.aqi != null && h.t + HOUR > now && h.t < now + 12 * HOUR);
+      const worst = next.reduce((m, h) => (h.aqi > (m?.aqi ?? -1) ? h : m), null);
+      if (worst && worst.aqi >= 101) {
+        const lvl = airLevel(worst.aqi);
+        messages.push({
+          title: `Air quality: ${lvl.name} (AQI ${r0(worst.aqi)})`,
+          message: `Worst around ${ampm(worst.t, off)} in ${place.name}. ${lvl.advice}`,
+          priority: worst.aqi >= 151 ? PRI.high : PRI.normal, tags: [EMOJI.air], buttons: ["app", "snooze"],
+        });
+        state.airDay = today;
+      }
+    } catch { /* air-quality service down: try next run */ }
+  }
+
+  // ---------- 7. night sky: full moon, meteor showers, northern lights (evening, once each) ----------
+  if (hourNow >= 17 && hourNow < 21.5) {
+    const local = LT(now, off), y = local.getUTCFullYear(), mo = local.getUTCMonth(), dd = local.getUTCDate();
+    const t21 = now + (21 - hourNow) * HOUR;
+    let clouds = null;
+    const skyClouds = async () => {
+      if (clouds !== null) return clouds;
+      try {
+        const cc = await getJSON(fetchFn, `https://api.open-meteo.com/v1/forecast?latitude=${place.lat}&longitude=${place.lon}&hourly=cloud_cover&timezone=auto&forecast_days=2`);
+        const vals = cc.hourly.time.map((t, i) => ({ t: parseLocalTime(t, off), c: cc.hourly.cloud_cover[i] }))
+          .filter(h => h.t >= t21 && h.t <= t21 + 8 * HOUR).map(h => h.c);
+        clouds = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+      } catch { clouds = null; }
+      return clouds;
+    };
+    const cloudLine = c => c == null ? "" : c < 30 ? "Skies look mostly clear." : c < 65 ? "Some clouds around; you may get breaks." : "Clouds will probably hide it, sorry.";
+
+    // full moon (with its traditional name)
+    const m = moon(t21), mNext = moon(t21 + DAY);
+    const closest = Math.abs(m.age - m.P / 2) <= Math.abs(mNext.age - mNext.P / 2);   // tonight beats tomorrow
+    if (Math.abs(m.age - m.P / 2) <= 0.6 && closest && state.fullMoon !== `${y}-${mo}`) {
+      const c = await skyClouds();
+      messages.push({
+        title: `Full ${MOON_NAMES[mo]} tonight`,
+        message: `${MOON_NOTES[mo] ? MOON_NOTES[mo] + " " : ""}Look east after sunset to see it rise. ${cloudLine(c)}`,
+        priority: PRI.normal, tags: [EMOJI.moon], buttons: ["app"],
+      });
+      state.fullMoon = `${y}-${mo}`;
+    }
+
+    // meteor showers: the night of the peak
+    const shower = SHOWERS.find(sh => sh.m === mo && sh.d === dd);
+    if (shower && state.shower !== `${y}-${shower.name}`) {
+      const c = await skyClouds();
+      const moonBright = m.illum > 0.5;
+      messages.push({
+        title: `${shower.name} meteor shower tonight`,
+        message: `Up to about ${shower.rate} meteors an hour at the peak. ${shower.when} Find a dark spot away from lights, let your eyes adjust for 20 minutes, and look up.` +
+          (moonBright ? " The bright moon will wash out the fainter ones." : " The moon won't get in the way much.") + ` ${cloudLine(c)}`,
+        priority: PRI.normal, tags: [EMOJI.meteor], buttons: ["app"],
+      });
+      state.shower = `${y}-${shower.name}`;
+    }
+
+    // northern lights: a strong geomagnetic storm (Kp 7+) is what it takes this far south
+    if (state.aurora !== today) {
+      try {
+        const rows = await getJSON(fetchFn, "https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json");
+        const kps = kpTonight(rows, t21);
+        if (kps >= 7) {
+          const c = await skyClouds();
+          messages.push({
+            title: `Northern lights possible tonight (Kp ${kps})`,
+            message: `A strong space-weather storm is forecast. Look low on the northern horizon from somewhere dark, best between 10 PM and 2 AM. Your phone camera (night mode) often sees the colors before your eyes do. ${cloudLine(c)}`,
+            priority: PRI.high, tags: [EMOJI.aurora], buttons: ["app"],
+          });
+          state.aurora = today;
+        }
+      } catch { /* space-weather service down */ }
+    }
+  }
+
   return { messages, state, snoozed };
 }
+
+// ---------- helpers for the checks above ----------
+function frostTips(low) {
+  if (low <= 28) return "Hard freeze: bring in or cover anything you want to keep, disconnect and drain the hoses, and open the cabinet doors under sinks on outside walls.";
+  if (low <= 32) return "Freeze: cover tender plants or bring pots inside, and bring the hose in.";
+  return "Frost: cover tender plants and bring potted ones inside for the night.";
+}
+function airLevel(aqi) {
+  if (aqi >= 201) return { name: "Very unhealthy", advice: "Everyone should stay indoors as much as possible; keep windows closed." };
+  if (aqi >= 151) return { name: "Unhealthy", advice: "Keep outdoor play short for everyone, especially kids, and skip hard exercise outside." };
+  return { name: "Unhealthy for sensitive groups", advice: "Kids, older adults, and anyone with asthma should take it easy outside." };
+}
+// Open-Meteo local time string -> ms (same convention as the forecast)
+function parseLocalTime(s, off) {
+  const [d, tm = "00:00"] = s.split("T"); const [Y, M, D] = d.split("-").map(Number); const [h, mi] = tm.split(":").map(Number);
+  return Date.UTC(Y, M - 1, D, h, mi) - off * 1000;
+}
+function kpTonight(rows, t21) {
+  // the feed is a table (first row is the header) or a list of objects, depending on version
+  let list = rows;
+  if (Array.isArray(rows[0])) { const hdr = rows[0]; list = rows.slice(1).map(r => Object.fromEntries(hdr.map((k, i) => [k, r[i]]))); }
+  const from = t21 - 2 * HOUR, to = t21 + 8 * HOUR;
+  return list.reduce((mx, r) => {
+    const t = Date.parse(String(r.time_tag).replace(" ", "T") + (String(r.time_tag).endsWith("Z") ? "" : "Z"));
+    const kp = parseFloat(r.kp ?? r.Kp);
+    return t >= from && t <= to && isFinite(kp) ? Math.max(mx, Math.round(kp)) : mx;
+  }, 0);
+}
+const MOON_NAMES = ["Wolf Moon", "Snow Moon", "Worm Moon", "Pink Moon", "Flower Moon", "Strawberry Moon", "Buck Moon", "Sturgeon Moon", "Harvest Moon", "Hunter's Moon", "Beaver Moon", "Cold Moon"];
+const MOON_NOTES = { 10: "It's Beavy's moon! It's named for when beavers finish their dams and lodges for winter." };
+// Peak nights (evening of). Dates drift a day or so year to year.
+const SHOWERS = [
+  { name: "Quadrantid", m: 0, d: 3, rate: 100, when: "Best in the hours before dawn." },
+  { name: "Lyrid", m: 3, d: 22, rate: 18, when: "Best after midnight." },
+  { name: "Eta Aquariid", m: 4, d: 5, rate: 30, when: "Best in the hour or two before dawn." },
+  { name: "Perseid", m: 7, d: 12, rate: 100, when: "Best after midnight, but you can see some from about 10 PM." },
+  { name: "Orionid", m: 9, d: 21, rate: 20, when: "Best after midnight." },
+  { name: "Leonid", m: 10, d: 17, rate: 15, when: "Best after midnight." },
+  { name: "Geminid", m: 11, d: 13, rate: 120, when: "Good from about 9 PM on, best around 2 AM." },
+];
 
 // Buttons under a notification. "Snooze today" posts to the snooze topic (no server needed).
 function buttonsFor(keys = [], topic) {
