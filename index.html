@@ -111,6 +111,7 @@ button{cursor:pointer}
 .now .cond strong{font-family:var(--f-display);font-weight:400;font-size:26px;line-height:1.1;display:flex;align-items:center;gap:6px}
 .buddy{border:0;background:transparent;padding:0;width:124px;height:139px;align-self:flex-start;-webkit-tap-highlight-color:transparent;transform-origin:50% 90%;cursor:pointer;position:relative;color:var(--ink)}
 .buddy .outfit{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.buddy .ofl{position:absolute;inset:0;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-position:center;mask-position:center;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
 .buddy.wiggle{animation:wiggle .5s ease}
 @keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-6deg)}75%{transform:rotate(6deg)}}
 .fact-bubble{margin:0;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:10px 12px;font-size:14px;position:relative}
@@ -238,8 +239,6 @@ footer{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:
     <symbol id="i-snow" viewBox="0 0 24 24"><path d="M7 14.5h10.2a4.1 4.1 0 0 0 .4-8.2A5.6 5.6 0 0 0 6.6 6 4.3 4.3 0 0 0 7 14.5z" fill="var(--muted)"/><g fill="var(--snow)"><circle cx="7.5" cy="18" r="1.4"/><circle cx="12" cy="20.5" r="1.4"/><circle cx="16.5" cy="18" r="1.4"/></g></symbol>
     <symbol id="i-storm" viewBox="0 0 24 24"><path d="M7 14h10.2a4.1 4.1 0 0 0 .4-8.2A5.6 5.6 0 0 0 6.6 5.5 4.3 4.3 0 0 0 7 14z" fill="var(--muted)"/><path d="M12.5 13l-3 5h3l-1.5 4.5 4.5-6h-3l1.5-3.5z" fill="var(--warm)"/></symbol>
     <symbol id="i-fog" viewBox="0 0 24 24"><g stroke="var(--muted)" stroke-width="2" stroke-linecap="round"><path d="M4 9h16M6 13h12M4 17h16"/></g></symbol>
-    <filter id="of-wobble" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="4" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="5" xChannelSelector="R" yChannelSelector="G"/></filter>
-    <pattern id="of-hatch" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(35)"><line x1="0" y1="0" x2="0" y2="7" stroke="currentColor" stroke-width="2"/></pattern>
     <symbol id="i-fish" viewBox="0 0 28 16"><path d="M2 8c3.5-5.5 11-6.5 17-2.2L25.5 1.5v13L19 10.2C13 14.5 5.5 13.5 2 8z"/><circle cx="7" cy="7" r="1.3" fill="var(--surface)"/></symbol>
   </defs>
 </svg>
@@ -825,55 +824,18 @@ function renderOut(D, fc) {
 
 /* ---------- Mia's beaver (her own drawing): tap for a beaver fact ---------- */
 function beaverOutfit(h) {
-  // Outfits drawn to sit on Tony's drawing. Coordinates match beaver.png (640 x 715; her head is near y 140-240).
+  // Outfits are engraved to match Tony's drawing: a paper-coloured shape, a faint hand tint, then the ink linework.
   const snowy = (h.code >= 71 && h.code <= 77) || h.code === 85 || h.code === 86;
   const wet = !snowy && h.code >= 51;
   const cold = snowy || h.temp <= 38;
   const sunny = !wet && !cold && h.code <= 1 && h.isDay && h.temp >= 72;
-  const ink = 'stroke="currentColor" stroke-linejoin="round" stroke-linecap="round"';
-  let g = "";
-  if (cold) {
-    // knit cap pulled over the crown, following the tilt of her head, and a striped muffler
-    g = `<g filter="url(#of-wobble)"><g transform="translate(-8 -20) rotate(-3 340 160)">
-      <path d="M276 196 C266 140 300 92 348 92 C392 93 412 128 404 154 C366 158 316 170 276 196Z" fill="#A8402A" ${ink} stroke-width="4"/>
-      <path d="M276 196 C266 140 300 92 348 92 C392 93 412 128 404 154 C366 158 316 170 276 196Z" fill="url(#of-hatch)" opacity=".55"/>
-      <path d="M298 160 l-6 -34 M318 150 l-4 -40 M340 143 l-2 -44 M362 140 l2 -40 M384 140 l5 -32" ${ink} stroke-width="2" fill="none" opacity=".6"/>
-      <path d="M270 200 C314 168 368 150 410 150 L414 170 C372 170 320 186 278 222Z" fill="#EFE2C6" ${ink} stroke-width="4"/>
-      <path d="M288 196 l4 12 M306 186 l4 12 M324 178 l4 12 M342 172 l3 12 M360 167 l3 12 M378 164 l2 12 M396 162 l2 11" ${ink} stroke-width="2" fill="none" opacity=".7"/>
-      <circle cx="342" cy="84" r="20" fill="#EFE2C6" ${ink} stroke-width="4"/>
-      <path d="M330 76 l8 6 M344 70 l2 10 M352 82 l-8 4 M336 92 l6 -6" ${ink} stroke-width="2" opacity=".7"/>
-      </g>
-      <path d="M278 240 C320 262 400 266 446 244 L450 268 C402 292 318 290 274 266Z" fill="#A8402A" ${ink} stroke-width="4"/>
-      <path d="M278 240 C320 262 400 266 446 244 L450 268 C402 292 318 290 274 266Z" fill="url(#of-hatch)" opacity=".5"/>
-      <path d="M300 262 L284 352 L314 358 L326 270Z" fill="#A8402A" ${ink} stroke-width="4"/>
-      <path d="M314 254 l-3 26 M346 262 l-1 26 M378 264 l0 26 M410 260 l2 24 M292 318 l26 6" stroke="#EFE2C6" stroke-width="8" fill="none"/>
-      <path d="M286 352 l-2 14 M294 354 l-2 14 M302 356 l-1 14 M310 357 l0 14" ${ink} stroke-width="2.5" fill="none"/>
-    </g>`;
-    if (snowy) g += `<g fill="#fff" ${ink} stroke-width="2.5"><circle cx="90" cy="120" r="8"/><circle cx="560" cy="80" r="7"/><circle cx="520" cy="250" r="9"/><circle cx="130" cy="300" r="7"/><circle cx="600" cy="400" r="6"/><circle cx="60" cy="430" r="8"/></g>`;
-  } else if (wet) {
-    // an old umbrella held up in her paws, canopy tipped toward her face
-    g = `<g filter="url(#of-wobble)">
-      <path d="M404 378 L476 40" ${ink} stroke-width="7" fill="none"/>
-      <path d="M404 378 q-5 22 -25 17" ${ink} stroke-width="7" fill="none"/>
-      <g transform="translate(21 0) rotate(10 455 40)">
-        <path d="M300 64 Q455 -88 610 64 Q584 46 558 64 Q532 46 506 64 Q481 46 455 64 Q429 46 404 64 Q378 46 352 64 Q326 46 300 64Z" fill="#2E6A5F" ${ink} stroke-width="4.5"/>
-        <path d="M300 64 Q455 -88 610 64Z" fill="url(#of-hatch)" opacity=".5"/>
-        <path d="M455 -12 Q402 14 352 64 M455 -12 Q430 24 404 64 M455 -12 V64 M455 -12 Q480 24 506 64 M455 -12 Q508 14 558 64" ${ink} stroke-width="2.5" fill="none"/>
-        <path d="M455 -12 v-18" ${ink} stroke-width="6"/>
-      </g>
-    </g>
-    <g ${ink} stroke-width="3" opacity=".75"><path d="M80 120 l-8 22 M150 60 l-8 22 M110 260 l-8 22 M560 160 l-8 22 M600 280 l-8 22 M60 380 l-8 22 M590 420 l-8 22"/></g>`;
-  } else if (sunny) {
-    // round dark spectacles: near lens over her eye, far lens peeking past the bridge of the nose
-    g = `<g filter="url(#of-wobble)">
-      <path d="M352 166 L300 180" ${ink} stroke-width="4" fill="none"/>
-      <circle cx="368" cy="166" r="17" fill="#1F2A30" ${ink} stroke-width="4"/>
-      <path d="M358 158 l9 -5" stroke="#F6EEDB" stroke-width="3" opacity=".7"/>
-      <path d="M385 162 Q392 155 399 156" ${ink} stroke-width="4" fill="none"/>
-      <ellipse cx="406" cy="156" rx="8" ry="12" fill="#1F2A30" ${ink} stroke-width="3.5"/>
-    </g>`;
-  }
-  return g ? `<svg class="outfit" viewBox="0 0 640 715" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${g}</svg>` : "";
+  const name = cold ? "cold" : wet ? "rain" : sunny ? "sun" : null;
+  if (!name) return "";
+  const tint = { cold: "rgba(180,71,47,.32)", rain: "rgba(60,110,98,.30)", sun: "" }[name];
+  const layer = (file, bg) => `<span class="ofl" style="background:${bg};-webkit-mask-image:url(${file});mask-image:url(${file})"></span>`;
+  let out = layer(`o-${name}-base.png`, "var(--surface)") + (tint ? layer(`o-${name}-base.png`, tint) : "") + layer(`o-${name}-ink.png`, "var(--ink)");
+  if (snowy) out += `<svg class="outfit" viewBox="0 0 640 715" aria-hidden="true"><g fill="var(--surface)" stroke="currentColor" stroke-width="2.5">${[[90,120,8],[560,80,7],[520,250,9],[130,300,7],[600,400,6],[60,430,8]].map(([x,y,r]) => `<circle cx="${x}" cy="${y}" r="${r}"/><path d="M${x-r*.6} ${y}h${r*1.2}M${x} ${y-r*.6}v${r*1.2}" stroke-width="1.5"/>`).join("")}</g></svg>`;
+  return out;
 }
 const BEAVER_FACTS = [
   "Beaver teeth are orange! Iron in the enamel makes them extra strong.",
