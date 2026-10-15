@@ -305,6 +305,10 @@ footer{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:
 
   <section class="card nowcard" id="nowcard" aria-label="Current conditions"></section>
   <section class="card" id="fishcard" aria-label="Fishing outlook"></section>
+  <section class="card" aria-label="Hourly forecast">
+    <div class="card-h"><h2>The next 48 hours</h2><span class="label">temp · chance of precip</span></div>
+    <div class="hourly" id="hourly"></div>
+  </section>
   <section class="card" aria-label="Radar">
     <div class="card-h"><h2>Radar</h2><span class="label" id="rtime">past 2 hours</span></div>
     <div class="radar" id="radar"></div>
@@ -313,20 +317,16 @@ footer{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:
       <input type="range" id="rslider" min="0" max="0" value="0" aria-label="Radar frame">
     </div>
   </section>
-  <section class="card" aria-label="Hourly forecast">
-    <div class="card-h"><h2>The next 48 hours</h2><span class="label">temp · chance of precip</span></div>
-    <div class="hourly" id="hourly"></div>
-  </section>
   <section class="card" aria-label="10-day forecast">
     <div class="card-h"><h2>Ten days ahead</h2><span class="label">fishing 1–5 · low · range · high</span></div>
     <div class="days" id="days"></div>
   </section>
-  <section class="card" id="trustcard" aria-label="Forecast confidence and scorecard"></section>
   <section class="card" aria-label="Barometer, sun and moon">
     <div class="card-h"><h2>Barometer, sun &amp; moon</h2><span class="label">for the angler</span></div>
     <div class="out" id="out"></div>
   </section>
   <section class="card" id="snowcard" aria-label="Snow forecast"></section>
+  <section class="card" id="trustcard" aria-label="Forecast confidence and scorecard"></section>
   <section class="card" aria-label="Forecaster discussion">
     <details class="afd" id="afd"><summary>What the forecaster is thinking</summary><div id="afdbody"></div></details>
   </section>
