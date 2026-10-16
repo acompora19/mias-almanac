@@ -114,14 +114,14 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
   // ---------- 3. rain / snow heads-up ----------
   if (!quiet && !snoozed) {
     const next = hours.filter(h => h.t + HOUR > now).slice(0, 4);
-    const dryNow = next[0] && next[0].precip < 0.01 && next[0].code < 51;
+    const wetNow = next[0] && (next[0].precip >= 0.01 || next[0].code >= 51);   // already raining: say "more rain"
     const start = next.slice(1).find(h => h.pop >= 60 && (h.precip >= 0.02 || h.snow >= 0.05));
     const recently = state.precipSentAt && now - state.precipSentAt < 5 * HOUR;
-    if (dryNow && start && !recently) {
+    if (start && !recently) {
       const snowy = start.snow >= 0.05;
       messages.push({
         title: snowy ? pick("Beavy spotted snow coming!", "Snow on the way, says Beavy") : pick("Beavy spotted rain coming", "Rain on the way, says Beavy", "Beavy's whiskers say rain"),
-        message: `${snowy ? "Snow" : "Rain"} starting around ${ampm(start.t, off)} (${r0(start.pop)}% chance). ` +
+        message: `${wetNow ? `More ${snowy ? "snow" : "rain"} coming` : `${snowy ? "Snow" : "Rain"} starting`} around ${ampm(start.t, off)} (${r0(start.pop)}% chance). ` +
           (snowy ? pick("Hats and mittens on!", "Go catch a snowflake on your tongue!")
                  : pick("Grab the umbrella, or do like Beavy and just get wet!", "Time to bring in anything that shouldn't get soggy.", "Rain boots by the door!")) + SIGN,
         priority: PRI.normal, tags: [snowy ? EMOJI.snow : EMOJI.rain],
