@@ -89,7 +89,7 @@ function gearFor(h, off, ahead = []) {
   const snowingNow = (h.code >= 71 && h.code <= 77) || h.code === 85 || h.code === 86;
   const rainingNow = !snowingNow && h.code >= 51;
   const snowAhead = hrs.reduce((a, x) => a + (x.snow || 0), 0) >= 0.2;
-  const rainAhead = hrs.some(x => x.pop >= 50 && x.precip >= 0.02);
+  const rainAhead = hrs.some(x => x.pop >= 30);
   const gustAhead = Math.max(...hrs.map(x => x.gust || 0));
   const hiAhead = Math.max(...hrs.map(x => x.temp));
   if (h.temp <= 15 || h.feels <= 5) return "extreme";
@@ -237,7 +237,7 @@ function wearFor(gear, fc, now = Date.now()) {
   const next = fc.hours.slice(i0, i0 + 12);
   if (!next.length) return line;
   const cur = next[0];
-  const wetLater = next.slice(2).some(h => h.pop >= 50 && h.precip >= 0.02);
+  const wetLater = next.slice(2).some(h => h.pop >= 30);
   const snowLater = next.slice(2).some(h => h.snow >= 0.1);
   const lowLater = Math.min(...next.map(h => h.temp));
   const uv = Math.max(...next.map(h => h.uv || 0));
