@@ -83,18 +83,24 @@ const GEAR = {
   hot: "Hot: tank top, sun hat & water", sunny: "Sunny & warm: sun hat & shades",
   fall: "Fall: flannel & beanie", spring: "Spring: light jacket & cap",
 };
-function gearFor(h, off) {
-  const snowing = (h.code >= 71 && h.code <= 77) || h.code === 85 || h.code === 86;
-  const raining = !snowing && h.code >= 51;
+// Dress Beavy for the day ahead, not just this hour: "ahead" is the next ~12 hours of forecast.
+function gearFor(h, off, ahead = []) {
+  const hrs = [h, ...ahead];
+  const snowingNow = (h.code >= 71 && h.code <= 77) || h.code === 85 || h.code === 86;
+  const rainingNow = !snowingNow && h.code >= 51;
+  const snowAhead = hrs.reduce((a, x) => a + (x.snow || 0), 0) >= 0.2;
+  const rainAhead = hrs.some(x => x.pop >= 50 && x.precip >= 0.02);
+  const gustAhead = Math.max(...hrs.map(x => x.gust || 0));
+  const hiAhead = Math.max(...hrs.map(x => x.temp));
   if (h.temp <= 15 || h.feels <= 5) return "extreme";
-  if (snowing || h.temp <= 34) return "snowy";
-  if (raining) return "rainy";
-  if (h.gust >= 28 || h.wind >= 18) return "windy";
-  if (h.temp >= 86) return "hot";
-  if (h.temp >= 72 && h.code <= 2) return "sunny";
+  if (snowingNow || snowAhead || h.temp <= 34) return "snowy";
+  if (rainingNow || rainAhead) return "rainy";
+  if (h.gust >= 28 || h.wind >= 18 || gustAhead >= 32) return "windy";
+  if (hiAhead >= 86) return "hot";
+  if (hiAhead >= 72 && h.code <= 2) return "sunny";
   const m = LT(h.t, off).getUTCMonth();               // 0 = January
   if (m >= 2 && m <= 4) return "spring";
-  if (m >= 5 && m <= 7) return h.temp >= 62 ? "sunny" : "spring";
+  if (m >= 5 && m <= 7) return hiAhead >= 62 ? "sunny" : "spring";
   if (m >= 8 && m <= 10) return "fall";
   return h.temp <= 42 ? "snowy" : "fall";             // December to February
 }

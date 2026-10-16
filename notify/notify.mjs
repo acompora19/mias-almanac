@@ -89,7 +89,7 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     if (snowToday >= 0.5) sky = `Snow today, about ${Math.round(snowToday)}″${wetHour ? ` starting around ${ampm(wetHour.t, off)}` : ""}.`;
     else if (wetHour) sky = `Rain likely around ${ampm(wetHour.t, off)} (${r0(wetHour.pop)}%).`;
     else sky = "No rain expected.";
-    const gear = gearFor(c, off);
+    const gear = gearFor(c, off, hours.filter(h => h.t > c.t).slice(0, 12));
     messages.push({
       title: `Good morning! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`,
       message: `${place.name}: high ${r0(d0.hi)}°, low ${r0(d0.lo)}°. ${sky}` +
@@ -147,7 +147,7 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     else if (wet) sky = `Rain likely around ${ampm(wet.t, off)} (${r0(wet.pop)}%).`;
     else sky = "Dry all day.";
     if (gust >= 30) sky += ` Windy, gusts to ${r0(gust)} mph.`;
-    const gear = gearFor(morning, off);
+    const gear = gearFor(morning, off, hours.filter(h => h.t > morning.t).slice(0, 12));
     const f = fishDay(d1, fc, now);
     const fishLine = f ? ` Fishing: ${f.rating} of 5 fish${f.rating >= 4 && f.windows.length ? `, best ${f.windows.map(w => `${ampm(w.start.t, off)}–${ampm(w.end.t + HOUR, off)}`).join(" and ")}` : ""}.` : "";
     messages.push({
