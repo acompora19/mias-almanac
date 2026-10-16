@@ -20,6 +20,10 @@ const PRI = { min: 1, low: 2, normal: 3, high: 4, max: 5 };
 // latest radar image from the Wilmington, OH radar that covers central Ohio
 const RADAR_IMG = "https://radar.weather.gov/ridge/standard/KILN_0.gif";
 
+// Every message comes from Beavy: a sign-off, plus a few ways to say each thing so it isn't the same every day.
+const SIGN = "\n\n— Beavy 🦫";
+const pick = (...opts) => opts[Math.floor(Math.random() * opts.length)];
+
 const hourly = "temperature_2m,apparent_temperature,precipitation_probability,precipitation,snowfall,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,surface_pressure,uv_index,is_day";
 
 async function getJSON(fetchFn, url) {
@@ -66,10 +70,14 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     if (state.alerts[id]) continue;
     const sev = p.severity;
     if (quiet && sev !== "Extreme" && sev !== "Severe") continue;   // minor advisories wait for morning
+    const serious = sev === "Extreme" || sev === "Severe";
+    const intro = /tornado warning/i.test(p.event) ? "Beavy here. This is a real one: if you're in the warned area, get to the lowest floor, away from windows, now."
+      : serious ? "Beavy here. This one is serious, so please give it a read."
+      : "Heads up from Beavy:";
     messages.push({
-      title: p.event,
-      message: (`${p.headline || ""}\n\n${(p.description || "").replace(/\s+/g, " ").slice(0, 600)}`.trim()) +
-        (/frost|freeze/i.test(p.event) ? `\n\n${frostTips(/hard freeze/i.test(p.event) ? 26 : /freeze/i.test(p.event) ? 30 : 34)}` : ""),
+      title: serious ? p.event : `Beavy's heads-up: ${p.event}`,
+      message: intro + "\n\n" + (`${p.headline || ""}\n\n${(p.description || "").replace(/\s+/g, " ").slice(0, 600)}`.trim()) +
+        (/frost|freeze/i.test(p.event) ? `\n\n${frostTips(/hard freeze/i.test(p.event) ? 26 : /freeze/i.test(p.event) ? 30 : 34)}` : "") + SIGN,
       priority: /tornado warning/i.test(p.event) || sev === "Extreme" ? PRI.max : sev === "Severe" ? PRI.high : PRI.normal,
       tags: [sev === "Extreme" || sev === "Severe" ? EMOJI.severe : EMOJI.advisory],
       attach: /thunderstorm|tornado|flood|rain|wind/i.test(p.event) ? RADAR_IMG : undefined,
@@ -86,15 +94,16 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     const wetHour = rest.find(h => h.pop >= 50 && h.precip >= 0.02);
     const snowToday = rest.reduce((s, h) => s + h.snow, 0);
     let sky;
-    if (snowToday >= 0.5) sky = `Snow today, about ${Math.round(snowToday)}″${wetHour ? ` starting around ${ampm(wetHour.t, off)}` : ""}.`;
-    else if (wetHour) sky = `Rain likely around ${ampm(wetHour.t, off)} (${r0(wetHour.pop)}%).`;
-    else sky = "No rain expected.";
+    if (snowToday >= 0.5) sky = `Snow today, about ${Math.max(1, Math.round(snowToday))}″${wetHour ? ` starting around ${ampm(wetHour.t, off)}` : ""}. ${pick("Snowball time!", "Find the mittens!", "Beavy's tail is ready for sledding.")}`;
+    else if (wetHour) sky = `Rain likely around ${ampm(wetHour.t, off)} (${r0(wetHour.pop)}%). ${pick("Puddles incoming!", "Beavy loves a wet day. You might not.", "Keep the umbrella close.")}`;
+    else sky = pick("No rain in sight.", "Dry skies all day.", "No rain today. Good dam-building weather!");
     const gear = gearFor(c, off, hours.filter(h => dayKey(h.t, off) === today));
     messages.push({
-      title: `Good morning! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`,
-      message: `${place.name}: high ${r0(d0.hi)}°, low ${r0(d0.lo)}°. ${sky}` +
-        (alerts.length ? ` ⚠ ${alerts.map(a => a.event).join(", ")}.` : "") +
-        `\n\nBeavy says to wear ${wearFor(gear, fc, now)}`,
+      title: pick(`Good morning from Beavy! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`, `Rise and shine! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`,
+        `Morning! Beavy checked the sky: high ${r0(d0.hi)}°`, `Up and at 'em! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`),
+      message: `High ${r0(d0.hi)}°, low ${r0(d0.lo)}°. ${sky}` +
+        (alerts.length ? ` ⚠️ ${alerts.map(a => a.event).join(", ")}.` : "") +
+        `\n\nBeavy says to wear ${wearFor(gear, fc, now)}` + SIGN,
       priority: PRI.normal, tags: [EMOJI.morning],
       attach: `${APP_URL}notify/img/gear-${gear}.jpg`, filename: `beavy-${gear}.jpg`,
       buttons: ["app", "snooze"],
@@ -111,8 +120,10 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     if (dryNow && start && !recently) {
       const snowy = start.snow >= 0.05;
       messages.push({
-        title: snowy ? "Snow on the way" : "Rain on the way",
-        message: `${snowy ? "Snow" : "Rain"} starting around ${ampm(start.t, off)} in ${place.name} (${r0(start.pop)}% chance).`,
+        title: snowy ? pick("Beavy spotted snow coming!", "Snow on the way, says Beavy") : pick("Beavy spotted rain coming", "Rain on the way, says Beavy", "Beavy's whiskers say rain"),
+        message: `${snowy ? "Snow" : "Rain"} starting around ${ampm(start.t, off)} (${r0(start.pop)}% chance). ` +
+          (snowy ? pick("Hats and mittens on!", "Go catch a snowflake on your tongue!")
+                 : pick("Grab the umbrella, or do like Beavy and just get wet!", "Time to bring in anything that shouldn't get soggy.", "Rain boots by the door!")) + SIGN,
         priority: PRI.normal, tags: [snowy ? EMOJI.snow : EMOJI.rain],
         attach: RADAR_IMG, filename: "radar.gif", buttons: ["radar", "snooze"],
       });
@@ -124,8 +135,9 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
       const lo = Math.max(1, Math.floor(snow24)), hi = Math.ceil(snow24 * 1.3);
       const first = hours.find(h => h.t + HOUR > now && h.snow >= 0.05);
       messages.push({
-        title: `${lo}–${hi}″ of snow coming`,
-        message: `About ${lo}–${hi} inches in ${place.name} over the next 24 hours${first ? `, starting around ${ampm(first.t, off)} ${dayName(first.t, off)}` : ""}.`,
+        title: `Beavy's excited: ${lo}–${hi}″ of snow coming!`,
+        message: `About ${lo}–${hi} inches over the next 24 hours${first ? `, starting around ${ampm(first.t, off)} ${dayName(first.t, off)}` : ""}. ` +
+          pick("Find the sleds and the shovels!", "Snowman weather, here we come.", "Beavy's already planning a snow fort.") + SIGN,
         priority: PRI.high, tags: [EMOJI.snow], attach: RADAR_IMG, filename: "radar.gif", buttons: ["app", "radar"],
       });
       state.snowDay = today;
@@ -145,15 +157,16 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     let sky;
     if (snow >= 0.5) sky = `Snow, about ${Math.max(1, Math.round(snow))}″${wet ? ` starting around ${ampm(wet.t, off)}` : ""}.`;
     else if (wet) sky = `Rain likely around ${ampm(wet.t, off)} (${r0(wet.pop)}%).`;
-    else sky = "Dry all day.";
+    else sky = pick("Dry all day.", "No rain in the forecast.", "Dry all day. Beavy approves.");
     if (gust >= 30) sky += ` Windy, gusts to ${r0(gust)} mph.`;
     const gear = gearFor(morning, off, tHours);
     const f = fishDay(d1, fc, now);
     const fishLine = f ? ` Fishing: ${f.rating} of 5 fish${f.rating >= 4 && f.windows.length ? `, best ${f.windows.map(w => `${ampm(w.start.t, off)}–${ampm(w.end.t + HOUR, off)}`).join(" and ")}` : ""}.` : "";
     messages.push({
-      title: `Tomorrow: high ${r0(d1.hi)}°, low ${r0(d1.lo)}°`,
-      message: `${dayName(d1.t + 12 * HOUR, off)} in ${place.name}: ${sky}${fishLine}` +
-        `\n\nFor the morning, Beavy says to wear ${wearFor(gear, fc, morning.t)}`,
+      title: pick(`Beavy's peek at tomorrow: high ${r0(d1.hi)}°`, `Tomorrow, says Beavy: high ${r0(d1.hi)}°, low ${r0(d1.lo)}°`, `Beavy's weather for tomorrow: ${r0(d1.hi)}° and ${r0(d1.lo)}°`),
+      message: `${dayName(d1.t + 12 * HOUR, off)}: high ${r0(d1.hi)}°, low ${r0(d1.lo)}°. ${sky}${fishLine}` +
+        `\n\nTomorrow, Beavy says to wear ${wearFor(gear, fc, morning.t)}` +
+        `\n\n${pick("Sleep tight!", "Goodnight from the lodge!", "Sweet dreams!", "Nighty night!")}` + SIGN,
       priority: PRI.normal, tags: [EMOJI.evening],
       attach: `${APP_URL}notify/img/gear-${gear}.jpg`, filename: `beavy-${gear}.jpg`,
       buttons: ["app"],
@@ -168,10 +181,11 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     if (f && f.rating === 5) {
       const fmtW = w => `${ampm(w.start.t, off)}–${ampm(w.end.t + HOUR, off)}`;
       messages.push({
-        title: "Tomorrow is a 5-fish day",
-        message: `Great fishing ${dayName(D.days[1].t + 12 * HOUR, off)} at ${place.name}.` +
+        title: pick("Beavy says tomorrow is a 5-fish day!", "5 fish tomorrow! Beavy's jealous", "Get the rods ready: 5-fish day tomorrow"),
+        message: `The fish should be biting ${dayName(D.days[1].t + 12 * HOUR, off)}.` +
           (f.windows.length ? ` Best times: ${f.windows.map(fmtW).join(" and ")}.` : "") +
-          (f.reasons[0] ? ` ${f.reasons[0][1]}` : ""),
+          (f.reasons[0] ? ` ${f.reasons[0][1]}` : "") +
+          ` ${pick("Beavy only eats plants, but even he's tempted.", "Bring home a big one!", "Tight lines!")}` + SIGN,
         priority: PRI.normal, tags: [EMOJI.fish], buttons: ["app", "snooze"],
       });
     }
@@ -188,9 +202,10 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
       const first = LT(now, off).getUTCMonth() >= 7 && state.firstFrostYear !== year;
       const kind = low <= 28 ? "Hard freeze" : low <= 32 ? "Freeze" : "Frost";
       messages.push({
-        title: `${first ? "First frost of the season: " : ""}${kind} tonight, low ${r0(low)}°`,
-        message: `${place.name} drops to about ${r0(low)}° tonight.\n\n${frostTips(low)}`,
+        title: first ? `Beavy says: first frost of the season tonight! Low ${r0(low)}°` : `Beavy's ${kind.toLowerCase()} alert: low ${r0(low)}° tonight`,
+        message: `It drops to about ${r0(low)}° tonight. ${pick("Beavy is tucking in his garden.", "Brr! Beavy's fluffing up his fur.", "Time to put the plants to bed.")}\n\n${frostTips(low)}` + SIGN,
         priority: low <= 28 ? PRI.high : PRI.normal, tags: [EMOJI.frost], buttons: ["app"],
+        attach: `${APP_URL}notify/img/gear-${low <= 28 ? "extreme" : "snowy"}.jpg`, filename: "beavy-cold.jpg",
       });
       if (first) state.firstFrostYear = year;
     }
@@ -207,8 +222,8 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
       if (worst && worst.aqi >= 101) {
         const lvl = airLevel(worst.aqi);
         messages.push({
-          title: `Air quality: ${lvl.name} (AQI ${r0(worst.aqi)})`,
-          message: `Worst around ${ampm(worst.t, off)} in ${place.name}. ${lvl.advice}`,
+          title: `Beavy says the air isn't great today (AQI ${r0(worst.aqi)})`,
+          message: `${lvl.name}, worst around ${ampm(worst.t, off)}. ${lvl.advice} Good day for indoor games.` + SIGN,
           priority: worst.aqi >= 151 ? PRI.high : PRI.normal, tags: [EMOJI.air], buttons: ["app", "snooze"],
         });
         state.airDay = today;
@@ -231,7 +246,7 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
       } catch { clouds = null; }
       return clouds;
     };
-    const cloudLine = c => c == null ? "" : c < 30 ? "Skies look mostly clear." : c < 65 ? "Some clouds around; you may get breaks." : "Clouds will probably hide it, sorry.";
+    const cloudLine = c => c == null ? "" : c < 30 ? "Skies look mostly clear!" : c < 65 ? "Some clouds around, but you may get breaks." : "Clouds will probably hide it. Beavy's sorry.";
 
     // full moon (with its traditional name)
     const m = moon(t21), mNext = moon(t21 + DAY);
@@ -239,8 +254,8 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     if (Math.abs(m.age - m.P / 2) <= 0.6 && closest && state.fullMoon !== `${y}-${mo}`) {
       const c = await skyClouds();
       messages.push({
-        title: `Full ${MOON_NAMES[mo]} tonight`,
-        message: `${MOON_NOTES[mo] ? MOON_NOTES[mo] + " " : ""}Look east after sunset to see it rise. ${cloudLine(c)}`,
+        title: pick(`Beavy says look up: full ${MOON_NAMES[mo]} tonight!`, `Full ${MOON_NAMES[mo]} tonight 🌕`),
+        message: `${MOON_NOTES[mo] ? MOON_NOTES[mo] + " " : ""}Look east after sunset to watch it rise. ${cloudLine(c)}` + SIGN,
         priority: PRI.normal, tags: [EMOJI.moon], buttons: ["app"],
       });
       state.fullMoon = `${y}-${mo}`;
@@ -252,9 +267,9 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
       const c = await skyClouds();
       const moonBright = m.illum > 0.5;
       messages.push({
-        title: `${shower.name} meteor shower tonight`,
+        title: `Beavy's sky alert: ${shower.name} meteor shower tonight!`,
         message: `Up to about ${shower.rate} meteors an hour at the peak. ${shower.when} Find a dark spot away from lights, let your eyes adjust for 20 minutes, and look up.` +
-          (moonBright ? " The bright moon will wash out the fainter ones." : " The moon won't get in the way much.") + ` ${cloudLine(c)}`,
+          (moonBright ? " The bright moon will wash out the fainter ones." : " The moon won't get in the way much.") + ` ${cloudLine(c)} Make a wish for Beavy!` + SIGN,
         priority: PRI.normal, tags: [EMOJI.meteor], buttons: ["app"],
       });
       state.shower = `${y}-${shower.name}`;
@@ -268,8 +283,8 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
         if (kps >= 7) {
           const c = await skyClouds();
           messages.push({
-            title: `Northern lights possible tonight (Kp ${kps})`,
-            message: `A strong space-weather storm is forecast. Look low on the northern horizon from somewhere dark, best between 10 PM and 2 AM. Your phone camera (night mode) often sees the colors before your eyes do. ${cloudLine(c)}`,
+            title: `Beavy says the northern lights might show up tonight! (Kp ${kps})`,
+            message: `A strong space-weather storm is forecast, which is what it takes to see them in Ohio. Look low on the northern horizon from somewhere dark, best between 10 PM and 2 AM. Your phone camera (night mode) often sees the colors before your eyes do. ${cloudLine(c)}` + SIGN,
             priority: PRI.high, tags: [EMOJI.aurora], buttons: ["app"],
           });
           state.aurora = today;
@@ -355,7 +370,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const test = process.argv.includes("--test");
   const out = await run({ state, topic });
   if (test) out.messages.unshift({
-    title: "Mia's Almanac is set up", message: "Notifications are working. Beavy will let you know about the weather.\n\nTry the buttons below.",
+    title: "Beavy here! Notifications are working", message: "From now on, I'll let you know what the weather's up to.\n\nTry the buttons below." + SIGN,
     priority: PRI.normal, tags: [EMOJI.test], attach: `${APP_URL}notify/img/gear-fall.jpg`, filename: "beavy.jpg", buttons: ["app", "radar", "snooze"],
   });
   if (out.snoozed) console.log("snoozed today: only warnings go out");
