@@ -14,7 +14,7 @@ export const HOME = { name: "Canal Winchester, OH", lat: 39.8437, lon: -82.8046 
 export const APP_URL = "https://acompora19.github.io/mias-almanac/";
 const QUIET = { from: 21.5, to: 6.5 };   // no non-urgent pushes 9:30 PM to 6:30 AM
 // ntfy turns these tag names into the emoji at the front of the title
-const EMOJI = { frost: "cold_face", air: "mask", moon: "full_moon", meteor: "comet", aurora: "milky_way", morning: "sunny", rain: "umbrella", snow: "snowflake", fish: "fishing_pole_and_fish", severe: "rotating_light", advisory: "warning", test: "white_check_mark" };
+const EMOJI = { evening: "crescent_moon", frost: "cold_face", air: "mask", moon: "full_moon", meteor: "comet", aurora: "milky_way", morning: "sunny", rain: "umbrella", snow: "snowflake", fish: "fishing_pole_and_fish", severe: "rotating_light", advisory: "warning", test: "white_check_mark" };
 // ntfy priority: 1 min, 2 low (silent), 3 default, 4 high, 5 max (can break through Do Not Disturb on Android)
 const PRI = { min: 1, low: 2, normal: 3, high: 4, max: 5 };
 // latest radar image from the Wilmington, OH radar that covers central Ohio
@@ -130,6 +130,36 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
       });
       state.snowDay = today;
     }
+  }
+
+  // ---------- 3b. evening preview of tomorrow (7:45 to 9:30 PM, once a day) ----------
+  if (hourNow >= 19.75 && hourNow < 21.5 && state.evening !== today && D.days[1]) {
+    const d1 = D.days[1];
+    const tmrw = dayKey(d1.t + 12 * HOUR, off);
+    const tHours = hours.filter(h => dayKey(h.t, off) === tmrw);
+    const morning = tHours.find(h => LT(h.t, off).getUTCHours() === 8) || tHours[0];
+    const awake = tHours.filter(h => { const hr = LT(h.t, off).getUTCHours(); return hr >= 6 && hr <= 22; });
+    const wet = awake.find(h => h.pop >= 50 && h.precip >= 0.02);
+    const snow = tHours.reduce((a, h) => a + h.snow, 0);
+    const gust = Math.max(...awake.map(h => h.gust));
+    let sky;
+    if (snow >= 0.5) sky = `Snow, about ${Math.max(1, Math.round(snow))}″${wet ? ` starting around ${ampm(wet.t, off)}` : ""}.`;
+    else if (wet) sky = `Rain likely around ${ampm(wet.t, off)} (${r0(wet.pop)}%).`;
+    else sky = "Dry all day.";
+    if (gust >= 30) sky += ` Windy, gusts to ${r0(gust)} mph.`;
+    const gear = gearFor(morning, off);
+    const f = fishDay(d1, fc, now);
+    const fishLine = f ? ` Fishing: ${f.rating} of 5 fish${f.rating >= 4 && f.windows.length ? `, best ${f.windows.map(w => `${ampm(w.start.t, off)}–${ampm(w.end.t + HOUR, off)}`).join(" and ")}` : ""}.` : "";
+    messages.push({
+      title: `Tomorrow: high ${r0(d1.hi)}°, low ${r0(d1.lo)}°`,
+      message: `${dayName(d1.t + 12 * HOUR, off)} in ${place.name}: ${sky}${fishLine}` +
+        `\n\nFor the morning, Beavy says to wear ${wearFor(gear, fc, morning.t)}`,
+      priority: PRI.normal, tags: [EMOJI.evening],
+      attach: `${APP_URL}notify/img/gear-${gear}.jpg`, filename: `beavy-${gear}.jpg`,
+      buttons: ["app"],
+    });
+    state.evening = today;
+    if (f && f.rating === 5) state.fish = today;   // the preview already covers the 5-fish day
   }
 
   // ---------- 4. great fishing tomorrow (evening, once a day) ----------
