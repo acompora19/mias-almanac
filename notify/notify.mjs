@@ -127,7 +127,7 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     const hol = holidayFor(now, off), firsts = firstsFor(todayHours);
     for (const f of firsts) state.firsts[f.key] = f.val;
     messages.push({
-      title: hol ? hol.greet : firsts.length ? firsts[0].title : pick(`Good morning from Beavy! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`, `Rise and shine! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`,
+      title: hol?.today ? hol.greet : firsts.length ? firsts[0].title : pick(`Good morning from Beavy! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`, `Rise and shine! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`,
         `Morning! Beavy checked the sky: high ${r0(d0.hi)}°`, `Up and at 'em! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`),
       message: firsts.map(f => f.line + "\n\n").join("") + `${r0(c.temp)}° now. High ${r0(d0.hi)}°, low ${r0(d0.lo)}°. ${sky}` +
         (alerts.length ? ` ⚠️ ${alerts.map(a => a.event).join(", ")}.` : "") +
@@ -189,7 +189,7 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     if (gust >= 30) sky += ` Windy, gusts to ${r0(gust)} mph.`;
     const gear = gearFor(morning, off, tHours);
     const tHol = holidayFor(morning.t, off), tFirsts = firstsFor(tHours);
-    const extra = [tHol ? `Tomorrow is ${tHol.name}!` : "", ...tFirsts.map(f => f.line.replace("It's", tHol ? "It also looks like" : "Tomorrow looks like"))].filter(Boolean).join(" ");
+    const extra = [tHol?.today ? `Tomorrow is ${tHol.name}!` : "", ...tFirsts.map(f => f.line.replace("It's", tHol?.today ? "It also looks like" : "Tomorrow looks like"))].filter(Boolean).join(" ");
     const f = fishDay(d1, fc, now);
     const fishLine = f ? ` Fishing: ${f.rating} of 5 fish${f.rating >= 4 && f.windows.length ? `, best ${f.windows.map(w => `${ampm(w.start.t, off)}–${ampm(w.end.t + HOUR, off)}`).join(" and ")}` : ""}.` : "";
     messages.push({
@@ -198,7 +198,7 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
         `\n\nTomorrow, Beavy says to wear ${wearFor(gear, fc, morning.t)}` +
         `\n\n${pick("Sleep tight!", "Goodnight from the lodge!", "Sweet dreams!", "Nighty night!")}` + SIGN,
       priority: PRI.normal, tags: [EMOJI.evening],
-      attach: `${APP_URL}notify/img/gear-${gear}.jpg`, filename: `beavy-${gear}.jpg`,
+      attach: tHol?.art ? `${APP_URL}notify/img/holiday-${tHol.key}.jpg` : `${APP_URL}notify/img/gear-${gear}.jpg`, filename: `beavy-${tHol?.art ? tHol.key : gear}.jpg`,
       buttons: ["app"],
     });
     state.evening = today;
