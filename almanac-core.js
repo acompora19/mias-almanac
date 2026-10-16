@@ -83,7 +83,8 @@ const GEAR = {
   hot: "Hot: tank top, sun hat & water", sunny: "Sunny & warm: sun hat & shades",
   fall: "Fall: flannel & beanie", spring: "Spring: light jacket & cap",
 };
-// Dress Beavy for the day ahead, not just this hour: "ahead" is the next ~12 hours of forecast.
+// Dress Beavy for the whole day, not just this hour: "ahead" is all of the day's hours.
+// Any hour with a 20%+ rain chance (the same number the 10-day list shows) means rain gear.
 function gearFor(h, off, ahead = []) {
   const hrs = [h, ...ahead];
   const snowingNow = (h.code >= 71 && h.code <= 77) || h.code === 85 || h.code === 86;

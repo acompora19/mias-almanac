@@ -649,7 +649,7 @@ function render() {
   const nc = $("nowcard");
   nc.style.setProperty("--sky", `var(--sky-${skyKind(c, fc)})`);
   const aside = italianAside(c);
-  const gear = gearFor(c, fc.off, D.next48.slice(1, 13));
+  const gear = gearFor(c, fc.off, fc.hours.filter(h => dayKey(h.t, fc.off) === dayKey(c.t, fc.off)));
   nc.innerHTML = `
     ${aside ? `<p class="aside">${aside[0]}<span>${aside[1]}</span></p>` : ""}
     <div class="now">
