@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import {
   HOUR, DAY, LT, fmtClock, fmtHour, dayKey, dayName, r0, moon,
-  parseOpenMeteo, derive, fishDay, gearFor, wearFor, GEAR,
+  parseOpenMeteo, derive, fishDay, gearFor, wearFor, GEAR, holidayFor,
 } from "../almanac-core.js";
 
 export const HOME = { name: "Canal Winchester, OH", lat: 39.8437, lon: -82.8046 };
@@ -59,6 +59,31 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     } catch {}
   }
 
+  // "Firsts" of the season: first 70° day of the year, first cold day (high stuck below 50°), first snow.
+  // The first time this runs, look back 3 months so we don't celebrate a "first" that already happened.
+  const seasonOf = t => { const d = LT(t, off); return d.getUTCMonth() >= 6 ? d.getUTCFullYear() : d.getUTCFullYear() - 1; };
+  const yearOf = t => LT(t, off).getUTCFullYear();
+  if (!state.firsts) {
+    state.firsts = {};
+    try {
+      const past = await getJSON(fetchFn, `https://api.open-meteo.com/v1/forecast?latitude=${place.lat}&longitude=${place.lon}&daily=temperature_2m_max,snowfall_sum&past_days=92&forecast_days=1&timezone=auto&temperature_unit=fahrenheit&precipitation_unit=inch`);
+      const yr = yearOf(now), se = seasonOf(now), seasonStart = `${se}-07-01`;
+      const rows = past.daily.time.map((d, i) => ({ d, hi: past.daily.temperature_2m_max[i], sn: past.daily.snowfall_sum[i] })).filter(r => r.d < LT(now, off).toISOString().slice(0, 10));
+      if (LT(now, off).getUTCMonth() >= 5 || rows.some(r => r.d.startsWith(String(yr)) && r.hi >= 70)) state.firsts.warm = yr;
+      if (rows.some(r => r.d >= seasonStart && r.hi < 50)) state.firsts.cold = se;
+      if (rows.some(r => r.d >= seasonStart && r.sn >= 0.1)) state.firsts.snow = se;
+    } catch { state.firsts = { warm: yearOf(now), cold: seasonOf(now), snow: seasonOf(now) }; }   // can't check: assume they happened
+  }
+  const firstsFor = dayHours => {
+    if (!dayHours.length) return [];
+    const t = dayHours[Math.floor(dayHours.length / 2)].t, hi = Math.max(...dayHours.map(h => h.temp)), sn = dayHours.reduce((a, h) => a + h.snow, 0);
+    const out = [];
+    if (sn >= 0.1 && state.firsts.snow !== seasonOf(t)) out.push({ key: "snow", val: seasonOf(t), title: "First snow of the season! Beavy's doing a happy dance", line: "It's the first snow of the season! ❄️" });
+    if (hi >= 70 && state.firsts.warm !== yearOf(t)) out.push({ key: "warm", val: yearOf(t), title: `First 70° day of the year! Beavy's thrilled`, line: `It's the first 70° day of the year! Shorts weather! 🌞` });
+    if (hi < 50 && state.firsts.cold !== seasonOf(t)) out.push({ key: "cold", val: seasonOf(t), title: "Brr! First cold day of the season, says Beavy", line: "It's the first day of the season that stays below 50°. Time to dig out the warm coats! 🧥" });
+    return out;
+  };
+
   // ---------- 1. weather warnings (any time of day) ----------
   let alerts = [];
   try {
@@ -97,15 +122,18 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     if (snowToday >= 0.5) sky = `Snow today, about ${Math.max(1, Math.round(snowToday))}″${wetHour ? ` starting around ${ampm(wetHour.t, off)}` : ""}. ${pick("Snowball time!", "Find the mittens!", "Beavy's tail is ready for sledding.")}`;
     else if (wetHour) sky = `Rain likely around ${ampm(wetHour.t, off)} (${r0(wetHour.pop)}%). ${pick("Puddles incoming!", "Beavy loves a wet day. You might not.", "Keep the umbrella close.")}`;
     else sky = pick("No rain in sight.", "Dry skies all day.", "No rain today. Good dam-building weather!");
-    const gear = gearFor(c, off, hours.filter(h => dayKey(h.t, off) === today));
+    const todayHours = hours.filter(h => dayKey(h.t, off) === today);
+    const gear = gearFor(c, off, todayHours);
+    const hol = holidayFor(now, off), firsts = firstsFor(todayHours);
+    for (const f of firsts) state.firsts[f.key] = f.val;
     messages.push({
-      title: pick(`Good morning from Beavy! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`, `Rise and shine! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`,
+      title: hol ? hol.greet : firsts.length ? firsts[0].title : pick(`Good morning from Beavy! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`, `Rise and shine! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`,
         `Morning! Beavy checked the sky: high ${r0(d0.hi)}°`, `Up and at 'em! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`),
-      message: `High ${r0(d0.hi)}°, low ${r0(d0.lo)}°. ${sky}` +
+      message: firsts.map(f => f.line + "\n\n").join("") + `${r0(c.temp)}° now. High ${r0(d0.hi)}°, low ${r0(d0.lo)}°. ${sky}` +
         (alerts.length ? ` ⚠️ ${alerts.map(a => a.event).join(", ")}.` : "") +
         `\n\nBeavy says to wear ${wearFor(gear, fc, now)}` + SIGN,
       priority: PRI.normal, tags: [EMOJI.morning],
-      attach: `${APP_URL}notify/img/gear-${gear}.jpg`, filename: `beavy-${gear}.jpg`,
+      attach: hol?.art ? `${APP_URL}notify/img/holiday-${hol.key}.jpg` : `${APP_URL}notify/img/gear-${gear}.jpg`, filename: `beavy-${hol?.art ? hol.key : gear}.jpg`,
       buttons: ["app", "snooze"],
     });
     state.morning = today;
@@ -160,11 +188,13 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     else sky = pick("Dry all day.", "No rain in the forecast.", "Dry all day. Beavy approves.");
     if (gust >= 30) sky += ` Windy, gusts to ${r0(gust)} mph.`;
     const gear = gearFor(morning, off, tHours);
+    const tHol = holidayFor(morning.t, off), tFirsts = firstsFor(tHours);
+    const extra = [tHol ? `Tomorrow is ${tHol.name}!` : "", ...tFirsts.map(f => f.line.replace("It's", tHol ? "It also looks like" : "Tomorrow looks like"))].filter(Boolean).join(" ");
     const f = fishDay(d1, fc, now);
     const fishLine = f ? ` Fishing: ${f.rating} of 5 fish${f.rating >= 4 && f.windows.length ? `, best ${f.windows.map(w => `${ampm(w.start.t, off)}–${ampm(w.end.t + HOUR, off)}`).join(" and ")}` : ""}.` : "";
     messages.push({
       title: pick(`Beavy's peek at tomorrow: high ${r0(d1.hi)}°`, `Tomorrow, says Beavy: high ${r0(d1.hi)}°, low ${r0(d1.lo)}°`, `Beavy's weather for tomorrow: ${r0(d1.hi)}° and ${r0(d1.lo)}°`),
-      message: `${dayName(d1.t + 12 * HOUR, off)}: high ${r0(d1.hi)}°, low ${r0(d1.lo)}°. ${sky}${fishLine}` +
+      message: (extra ? extra + "\n\n" : "") + `${dayName(d1.t + 12 * HOUR, off)}: high ${r0(d1.hi)}°, low ${r0(d1.lo)}°. ${sky}${fishLine}` +
         `\n\nTomorrow, Beavy says to wear ${wearFor(gear, fc, morning.t)}` +
         `\n\n${pick("Sleep tight!", "Goodnight from the lodge!", "Sweet dreams!", "Nighty night!")}` + SIGN,
       priority: PRI.normal, tags: [EMOJI.evening],

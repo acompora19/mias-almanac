@@ -249,4 +249,35 @@ function wearFor(gear, fc, now = Date.now()) {
   return line;
 }
 
-export { WEAR, wearFor, DAY, DN, FIRST_HR, GEAR, HOUR, LAST_HR, LT, VERDICT, clamp, compass, dayKey, dayName, derive, fishDay, fishHour, fmtClock, fmtHour, fmtIn, gearFor, moon, moonAlt, parseLocal, parseOpenMeteo, r0, solunar, sunTimes };
+// ---------- holidays: Beavy's special outfits and greetings ----------
+// Holiday pictures that exist (holiday-<key>.webp in the site, notify/img/holiday-<key>.jpg for notifications).
+// Until a picture is drawn for a holiday, Beavy keeps his weather outfit and just says the greeting.
+const HOLIDAY_ART = [];
+function easter(y) {   // Western Easter (anonymous Gregorian algorithm): [month 0-11, day]
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25),
+    g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4,
+    l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451), mo = Math.floor((h + l - 7 * m + 114) / 31);
+  return [mo - 1, ((h + l - 7 * m + 114) % 31) + 1];
+}
+function holidayFor(t, off) {
+  const d = LT(t, off), y = d.getUTCFullYear(), m = d.getUTCMonth(), day = d.getUTCDate(), wd = d.getUTCDay();
+  const [em, ed] = easter(y);
+  const list = [
+    [0, 1, "newyear", "New Year's Day", "Happy New Year from Beavy! 🎉"],
+    [1, 14, "valentine", "Valentine's Day", "Happy Valentine's Day from Beavy! ❤️"],
+    [2, 17, "stpatrick", "St. Patrick's Day", "Happy St. Patrick's Day! Beavy's wearing green. ☘️"],
+    [em, ed, "easter", "Easter", "Happy Easter from Beavy! 🐣"],
+    [6, 4, "july4", "Fourth of July", "Happy Fourth of July from Beavy! 🎆"],
+    [9, 31, "halloween", "Halloween", "Happy Halloween! Beavy's ready for trick-or-treating. 🎃"],
+    [11, 24, "christmas", "Christmas Eve", "Merry Christmas Eve from Beavy! 🎄"],
+    [11, 25, "christmas", "Christmas", "Merry Christmas from Beavy! 🎄"],
+    [11, 31, "newyear", "New Year's Eve", "Happy New Year's Eve from Beavy! 🎉"],
+  ];
+  const hit = list.find(([mm, dd]) => mm === m && dd === day);
+  if (hit) return { key: hit[2], name: hit[3], greet: hit[4], art: HOLIDAY_ART.includes(hit[2]) };
+  if (m === 10 && wd === 4 && day >= 22 && day <= 28)   // 4th Thursday of November
+    return { key: "thanksgiving", name: "Thanksgiving", greet: "Happy Thanksgiving from Beavy! 🦃", art: HOLIDAY_ART.includes("thanksgiving") };
+  return null;
+}
+
+export { holidayFor, HOLIDAY_ART, WEAR, wearFor, DAY, DN, FIRST_HR, GEAR, HOUR, LAST_HR, LT, VERDICT, clamp, compass, dayKey, dayName, derive, fishDay, fishHour, fmtClock, fmtHour, fmtIn, gearFor, moon, moonAlt, parseLocal, parseOpenMeteo, r0, solunar, sunTimes };

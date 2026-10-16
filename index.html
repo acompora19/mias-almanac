@@ -127,6 +127,7 @@ button{cursor:pointer}
 @keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-6deg)}75%{transform:rotate(6deg)}}
 .wear{margin:0;display:flex;flex-direction:column;gap:2px;font-family:var(--f-display);font-size:19px;line-height:1.3}
 .wear b{font-weight:400;font-style:italic;color:var(--accent)}
+.holiday{margin:0;font-family:var(--f-display);font-style:italic;font-size:18px;color:var(--accent)}
 .fact-bubble{margin:0;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:10px 12px;font-size:14px;position:relative}
 .fact-bubble b{font-family:var(--f-display);font-weight:400;font-size:16px;display:block;color:var(--accent)}
 .now .cond span{color:var(--muted)}
@@ -309,7 +310,7 @@ footer{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:
 
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script type="module">
-import { WEAR, wearFor, DAY, DN, FIRST_HR, GEAR, HOUR, LAST_HR, LT, VERDICT, clamp, compass, dayKey, dayName, derive, fishDay, fishHour, fmtClock, fmtHour, fmtIn, gearFor, moon, moonAlt, parseLocal, parseOpenMeteo, r0, solunar, sunTimes } from "./almanac-core.js";
+import { holidayFor, WEAR, wearFor, DAY, DN, FIRST_HR, GEAR, HOUR, LAST_HR, LT, VERDICT, clamp, compass, dayKey, dayName, derive, fishDay, fishHour, fmtClock, fmtHour, fmtIn, gearFor, moon, moonAlt, parseLocal, parseOpenMeteo, r0, solunar, sunTimes } from "./almanac-core.js";
 // Firebase is optional and loads after the page is drawn: if it can't load, the weather still
 // works and spots fall back to the ones saved on this phone.
 let initializeApp = null, F = null;
@@ -650,16 +651,19 @@ function render() {
   nc.style.setProperty("--sky", `var(--sky-${skyKind(c, fc)})`);
   const aside = italianAside(c);
   const gear = gearFor(c, fc.off, fc.hours.filter(h => dayKey(h.t, fc.off) === dayKey(c.t, fc.off)));
+  const hol = holidayFor(D.now, fc.off);
+  const gearImg = hol?.art ? `holiday-${hol.key}.webp` : `gear-${gear}.webp`, gearName = hol?.art ? hol.name : GEAR[gear];
   nc.innerHTML = `
     ${aside ? `<p class="aside">${aside[0]}<span>${aside[1]}</span></p>` : ""}
     <div class="now">
       <div class="temp">${r0(c.temp)}<sup>°F</sup></div>
       <div class="cond">
-        <button class="buddy" id="buddy" type="button" aria-label="Tap the beaver for a beaver fact"><img class="gear" src="gear-${gear}.webp" alt="Mia's beaver dressed for the weather: ${GEAR[gear]}" width="112" height="139" decoding="async"></button>
-        <span class="gear-tag">${GEAR[gear]}</span>
+        <button class="buddy" id="buddy" type="button" aria-label="Tap the beaver for a beaver fact"><img class="gear" src="${gearImg}" alt="Mia's beaver dressed for ${hol?.art ? hol.name : "the weather"}: ${gearName}" width="112" height="139" decoding="async"></button>
+        <span class="gear-tag">${gearName}</span>
         <strong>${icon(ic, 26)} ${label}</strong><span>Feels like ${r0(c.feels)}° · H ${r0(today.hi)}° L ${r0(today.lo)}°</span>
       </div>
     </div>
+    ${hol ? `<p class="holiday">${esc(hol.greet)}</p>` : ""}
     <p class="wear"><span class="label">What should Mia wear?</span><span><b>Beavy says to wear</b> ${esc(wearFor(gear, fc, D.now))}</span></p>
     <p class="fact-bubble" id="factbubble" hidden></p>
     <div class="facts">
