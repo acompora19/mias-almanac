@@ -78,13 +78,21 @@ function derive(fc) {
 
 // Tony's "Beaver Weather Gear": pick the outfit for the current hour.
 const GEAR = {
-  extreme: "Bitter cold: heavy coat & goggles", snowy: "Cold & snowy: trapper hat & scarf",
+  extreme: "Bitter cold: heavy coat & goggles", snowy: "Cold: warm coat, trapper hat & scarf",
   rainy: "Rainy: rain jacket, hood up", windy: "Windy: windbreaker & cap",
   hot: "Hot: tank top, sun hat & water", sunny: "Sunny & warm: sun hat & shades",
-  fall: "Fall: flannel & beanie", spring: "Spring: light jacket & cap",
+  fall: "Cool: flannel & beanie", spring: "Jacket weather: jacket & cap",
 };
+// How cold it feels while you're out: the coldest "feels like" from now through 8 PM (from 7 AM on).
+// Dressing goes by this, not the afternoon high, so a cold morning still means a coat.
+function dressTemp(h, off, hrs) {
+  const out = hrs.filter(x => x.t >= h.t - HOUR / 2 && LT(x.t, off).getUTCHours() >= 7 && LT(x.t, off).getUTCHours() <= 20);
+  return Math.min(h.feels ?? h.temp, ...out.map(x => x.feels ?? x.temp));
+}
 // Dress Beavy for the whole day, not just this hour: "ahead" is all of the day's hours.
 // Any hour with a 20%+ rain chance (the same number the 10-day list shows) means rain gear.
+//   feels 15° or colder: bitter cold gear     40° or colder (or snow): warm coat and hat
+//   41–52°: jacket                            53° and up: long sleeves; t-shirt on warm, sunny days
 function gearFor(h, off, ahead = []) {
   const hrs = [h, ...ahead];
   const snowingNow = (h.code >= 71 && h.code <= 77) || h.code === 85 || h.code === 86;
@@ -93,17 +101,15 @@ function gearFor(h, off, ahead = []) {
   const rainAhead = hrs.some(x => x.pop >= 20);
   const gustAhead = Math.max(...hrs.map(x => x.gust || 0));
   const hiAhead = Math.max(...hrs.map(x => x.temp));
-  if (h.temp <= 15 || h.feels <= 5) return "extreme";
-  if (snowingNow || snowAhead || h.temp <= 34) return "snowy";
+  const feel = dressTemp(h, off, hrs);
+  if (feel <= 15) return "extreme";
+  if (snowingNow || snowAhead || feel <= 40) return "snowy";
   if (rainingNow || rainAhead) return "rainy";
+  if (feel <= 52) return "spring";                   // the jacket picture
   if (h.gust >= 28 || h.wind >= 18 || gustAhead >= 32) return "windy";
   if (hiAhead >= 86) return "hot";
-  if (hiAhead >= 72 && h.code <= 2) return "sunny";
-  const m = LT(h.t, off).getUTCMonth();               // 0 = January
-  if (m >= 2 && m <= 4) return "spring";
-  if (m >= 5 && m <= 7) return hiAhead >= 62 ? "sunny" : "spring";
-  if (m >= 8 && m <= 10) return "fall";
-  return h.temp <= 42 ? "snowy" : "fall";             // December to February
+  if (hiAhead >= 75 || (hiAhead >= 70 && feel >= 62 && h.code <= 2)) return "sunny";
+  return "fall";                                      // long sleeves
 }
 function moonAlt(t, lat, lon) {
   const rad = Math.PI / 180, d = t / DAY + 2440587.5 - 2451545;
@@ -230,21 +236,27 @@ const WEAR = {
   hot: "shorts, a t-shirt, sunscreen, and lots of water.",
   sunny: "a t-shirt and sunglasses. Don't forget sunscreen!",
   fall: "long sleeves and a cozy sweatshirt.",
-  spring: "a light jacket. Mornings can be chilly!",
+  spring: "a jacket. It's a little chilly!",
 };
 function wearFor(gear, fc, now = Date.now()) {
-  let line = WEAR[gear] || WEAR.fall;
   const i0 = Math.max(0, fc.hours.findIndex(h => h.t + HOUR > now));
   const next = fc.hours.slice(i0, i0 + 12);
+  let line = WEAR[gear] || WEAR.fall;
   if (!next.length) return line;
   const cur = next[0];
+  const feel = dressTemp(cur, fc.off ?? 0, fc.hours.filter(h => dayKey(h.t, fc.off ?? 0) === dayKey(cur.t, fc.off ?? 0)));
+  const snowToday = next.some(h => h.snow >= 0.1);
+  if (gear === "snowy") line = feel <= 32 ? "a winter coat, a warm hat, and mittens." : "a warm coat and a hat. It's cold out there!";
+  if (gear === "snowy" && snowToday) line += " Snow boots too!";
+  if (gear === "spring") line = feel <= 46 ? "a warm jacket. It's chilly out there!" : "a jacket. It's a little chilly!";
+  if (gear === "rainy" && feel <= 50) line += " It's cold too, so wear something warm underneath.";
   const wetLater = next.slice(2).some(h => h.pop >= 20);
   const snowLater = next.slice(2).some(h => h.snow >= 0.1);
   const lowLater = Math.min(...next.map(h => h.temp));
   const uv = Math.max(...next.map(h => h.uv || 0));
   if (snowLater && gear !== "snowy" && gear !== "extreme") line += " Snow is coming later, so bring boots!";
   else if (wetLater && gear !== "rainy") line += " Rain later, so pack the rain boots.";
-  else if (cur.temp - lowLater >= 15 && lowLater < 55) line += " It gets chilly later, so grab a jacket.";
+  else if (cur.temp - lowLater >= 15 && lowLater < 55 && gear !== "snowy" && gear !== "extreme") line += " It gets chilly later, so grab a jacket.";
   else if (uv >= 7 && gear !== "sunny" && gear !== "hot") line += " Strong sun today: sunscreen!";
   return line;
 }
