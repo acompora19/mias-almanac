@@ -128,6 +128,10 @@ button{cursor:pointer}
 .wear{margin:0;display:flex;flex-direction:column;gap:2px;font-family:var(--f-display);font-size:19px;line-height:1.3}
 .wear b{font-weight:400;font-style:italic;color:var(--accent)}
 .holiday{margin:0;font-family:var(--f-display);font-style:italic;font-size:18px;color:var(--accent)}
+.visit{display:flex;align-items:center;gap:12px;padding:8px 10px;border:1px dashed var(--line);border-radius:4px;background:var(--surface)}
+.visit .buddy{width:84px;height:104px;flex:none;align-self:center}
+.visit p{margin:0;display:flex;flex-direction:column;gap:3px;font-family:var(--f-display);font-style:italic;font-size:17px;line-height:1.3;color:var(--accent)}
+.visit .hint{font-family:var(--f-body,inherit);font-style:normal;font-size:12px;color:var(--muted)}
 .fact-bubble{margin:0;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:10px 12px;font-size:14px;position:relative}
 .fact-bubble b{font-family:var(--f-display);font-weight:400;font-size:16px;display:block;color:var(--accent)}
 .now .cond span{color:var(--muted)}
@@ -654,21 +658,21 @@ function render() {
   const hol = holidayFor(D.now, fc.off);
   const vis = visitorFor(D.now, fc.off, gear, hol);
   visitor = vis;
-  const gearImg = vis ? `${vis.img}.webp` : hol?.art ? `holiday-${hol.key}.webp` : `gear-${gear}.webp`;
-  const gearName = vis ? `Visiting today: ${vis.name}` : hol?.art ? `Dressed for ${hol.name.replace(/^the /, "")}` : GEAR[gear];
+  const gearImg = hol?.art ? `holiday-${hol.key}.webp` : `gear-${gear}.webp`;
+  const gearName = hol?.art ? `Dressed for ${hol.name.replace(/^the /, "")}` : GEAR[gear];
   const who = vis ? `Beavy and ${vis.name} say` : "Beavy says";
   nc.innerHTML = `
     ${aside ? `<p class="aside">${aside[0]}<span>${aside[1]}</span></p>` : ""}
     <div class="now">
       <div class="temp">${r0(c.temp)}<sup>°F</sup></div>
       <div class="cond">
-        <button class="buddy" id="buddy" type="button" aria-label="Tap for an animal fact"><img class="gear" src="${gearImg}" alt="${vis ? `${vis.fact} visiting, dressed for ${hol?.art ? hol.name.replace(/^the /, "") : "the weather"}` : `Mia's beaver dressed for ${hol?.art ? hol.name.replace(/^the /, "") : "the weather"}: ${gearName}`}" width="112" height="139" decoding="async"></button>
+        <button class="buddy" id="buddy" type="button" aria-label="Tap the beaver for a beaver fact"><img class="gear" src="${gearImg}" alt="Mia's beaver dressed for ${hol?.art ? hol.name.replace(/^the /, "") : "the weather"}: ${gearName}" width="112" height="139" decoding="async"></button>
         <span class="gear-tag">${gearName}</span>
         <strong>${icon(ic, 26)} ${label}</strong><span>Feels like ${r0(c.feels)}° · H ${r0(today.hi)}° L ${r0(today.lo)}°</span>
       </div>
     </div>
     ${hol ? `<p class="holiday">${esc(hol.line)}</p>` : ""}
-    ${vis ? `<p class="holiday">${esc(vis.line)}</p>` : ""}
+    ${vis ? `<div class="visit"><button class="buddy visitor" id="visitor" type="button" aria-label="Tap ${esc(vis.name)} for a ${esc(vis.fact.toLowerCase())} fact"><img class="gear" src="${vis.img}.webp" alt="${esc(vis.fact)} visiting, dressed for ${hol?.art ? hol.name.replace(/^the /, "") : "the weather"}" width="84" height="104" decoding="async"></button><p><span class="label">Visiting Beavy today</span>${esc(vis.line)}<span class="hint">Tap ${esc(vis.name)} for a fact.</span></p></div>` : ""}
     <p class="wear"><span class="label">What should Mia wear?</span><span><b>${who} to wear</b> ${esc(wearFor(gear, fc, D.now))}</span></p>
     <p class="fact-bubble" id="factbubble" hidden></p>
     <div class="facts">
@@ -892,11 +896,12 @@ function factOfTheDay() {
 $("dailyfact").textContent = factOfTheDay();
 let factIdx = Math.floor(Math.random() * BEAVER_FACTS.length);
 document.addEventListener("click", e => {
-  const b = e.target.closest("#buddy"); if (!b) return;
+  const b = e.target.closest("#buddy, #visitor"); if (!b) return;
   const bub = $("factbubble"); if (!bub) return;
   factIdx++;
-  const list = visitor ? CREW_FACTS[visitor.key] : BEAVER_FACTS;
-  bub.innerHTML = `<b>${visitor ? visitor.fact : "Beaver"} fact</b>${list[factIdx % list.length]}`;
+  const vis = b.id === "visitor" && visitor;
+  const list = vis ? CREW_FACTS[vis.key] : BEAVER_FACTS;
+  bub.innerHTML = `<b>${vis ? vis.fact : "Beaver"} fact</b>${list[factIdx % list.length]}`;
   bub.hidden = false;
   b.classList.remove("wiggle"); void b.offsetWidth; b.classList.add("wiggle");
 });

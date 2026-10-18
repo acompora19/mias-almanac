@@ -300,8 +300,8 @@ function holidayFor(t, off) {
 
 // ---------- the crew: Mia's other favorite animals stop by now and then ----------
 // Visits are picked from the date, so everyone sees the same visitor all day and it doesn't change on reload.
-// Every week has one visit day and half the weeks get a second one (at least two days apart), so it's
-// once or twice a week, never two days in a row. The Turkey always comes for Thanksgiving.
+// Every week has two visit days and half the weeks get a third (all at least two days apart), so it's
+// two or three times a week, never two days in a row. The Turkey always comes for Thanksgiving.
 const CREW = {
   turkey: { name: "the Turkey", line: "The Turkey is visiting today! Gobble gobble!", fact: "Turkey" },
   dolphin: { name: "the Dolphin", line: "The Dolphin swam over to visit today! Splash!", fact: "Dolphin" },
@@ -317,15 +317,18 @@ function dayHash(n, salt = 0) {
 function visitDay(n) {
   const week = Math.floor(n / 7), d = ((n % 7) + 7) % 7;
   const a = dayHash(week) % 7, b = (a + 2 + dayHash(week, 1) % 4) % 7;   // b is at least two days from a
-  return d === a || (dayHash(week, 2) % 2 === 0 && d === b);
+  const far = x => [a, b].every(y => Math.min(Math.abs(x - y), 7 - Math.abs(x - y)) >= 2);
+  const cands = [0, 1, 2, 3, 4, 5, 6].filter(far), c = cands.length ? cands[dayHash(week, 2) % cands.length] : -1;
+  return d === a ? 0 : d === b ? 1 : (dayHash(week, 4) % 2 === 0 && d === c) ? 2 : -1;   // which visit of the week, or -1
 }
 function visitorFor(t, off, gear, hol = null) {
   const n = Math.floor((t + off * 1000) / DAY);
   let key = null;
   if (hol?.key === "thanksgiving" && hol.today) key = "turkey";
   else {
-    if (!visitDay(n) || visitDay(n - 1)) return null;
-    key = Object.keys(CREW)[dayHash(n, 3) % 3];
+    const rank = visitDay(n);
+    if (rank < 0 || visitDay(n - 1) >= 0) return null;
+    key = Object.keys(CREW)[(dayHash(Math.floor(n / 7), 5) + rank) % 3];   // the three take turns within a week
   }
   const outfit = hol && CREW_HOLIDAYS.includes(hol.key) ? hol.key : (CREW_OUTFIT[gear] || "windy");   // no crew outfit for Beavy's other holidays
   const c = CREW[key];
