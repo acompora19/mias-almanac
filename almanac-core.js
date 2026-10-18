@@ -335,5 +335,17 @@ function visitorFor(t, off, gear, hol = null) {
   return { key, ...c, outfit, img: `crew-${key}-${outfit}`,
     line: hol?.key === "thanksgiving" && hol.today ? "The Turkey is visiting for Thanksgiving! Gobble gobble!" : c.line };
 }
+// The next visit in the coming week, for "the Turkey is coming on Wednesday!" on the page.
+const CREW_EMOJI = { turkey: "🦃", dolphin: "🐬", turtle: "🐢" };
+function nextVisit(t, off) {
+  for (let d = 1; d <= 7; d++) {
+    const tt = t + d * DAY, v = visitorFor(tt, off, "fall", holidayFor(tt, off));
+    if (!v) continue;
+    const weekday = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][LT(tt, off).getUTCDay()];
+    const Name = v.name.replace(/^the /, "The ");
+    return { ...v, days: d, weekday, line: d === 1 ? `${Name} is coming to visit tomorrow! ${CREW_EMOJI[v.key]}` : `${Name} is coming to visit on ${weekday}! ${CREW_EMOJI[v.key]}` };
+  }
+  return null;
+}
 
-export { CREW, visitorFor, holidayFor, HOLIDAY_ART, WEAR, wearFor, DAY, DN, FIRST_HR, GEAR, HOUR, LAST_HR, LT, VERDICT, clamp, compass, dayKey, dayName, derive, fishDay, fishHour, fmtClock, fmtHour, fmtIn, gearFor, moon, moonAlt, parseLocal, parseOpenMeteo, r0, solunar, sunTimes };
+export { CREW, visitorFor, nextVisit, holidayFor, HOLIDAY_ART, WEAR, wearFor, DAY, DN, FIRST_HR, GEAR, HOUR, LAST_HR, LT, VERDICT, clamp, compass, dayKey, dayName, derive, fishDay, fishHour, fmtClock, fmtHour, fmtIn, gearFor, moon, moonAlt, parseLocal, parseOpenMeteo, r0, solunar, sunTimes };
