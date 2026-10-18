@@ -301,9 +301,9 @@ function holidayFor(t, off) {
 // ---------- the crew: Mia's other favorite animals stop by now and then ----------
 // Visits are picked from the date, so everyone sees the same visitor all day and it doesn't change on reload.
 // Every week has two visit days and half the weeks get a third (all at least two days apart), so it's
-// two or three times a week, never two days in a row. Gobble Gobble (the Turkey) always comes for Thanksgiving.
+// two or three times a week, never two days in a row. Gobble (the Turkey) always comes for Thanksgiving.
 const CREW = {
-  turkey: { name: "Gobble Gobble", line: "Gobble Gobble is visiting today! Gobble gobble!", fact: "Turkey" },
+  turkey: { name: "Gobble", line: "Gobble is visiting today! Gobble gobble!", fact: "Turkey" },
   dolphin: { name: "the Dolphin", line: "The Dolphin swam over to visit today! Splash!", fact: "Dolphin" },
   turtle: { name: "the Turtle", line: "The Turtle made it over to visit today. Slow and steady!", fact: "Turtle" },
 };
@@ -333,7 +333,7 @@ function visitorFor(t, off, gear, hol = null) {
   const outfit = hol && CREW_HOLIDAYS.includes(hol.key) ? hol.key : (CREW_OUTFIT[gear] || "windy");   // no crew outfit for Beavy's other holidays
   const c = CREW[key];
   return { key, ...c, outfit, img: `crew-${key}-${outfit}`,
-    line: hol?.key === "thanksgiving" && hol.today ? "Gobble Gobble is visiting for Thanksgiving! Gobble gobble!" : c.line };
+    line: hol?.key === "thanksgiving" && hol.today ? "Gobble is visiting for Thanksgiving! Gobble gobble!" : c.line };
 }
 // The next visit in the coming week, for "the Turkey is coming on Wednesday!" on the page.
 const CREW_EMOJI = { turkey: "🦃", dolphin: "🐬", turtle: "🐢" };
