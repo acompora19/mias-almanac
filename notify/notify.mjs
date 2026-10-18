@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import {
   HOUR, DAY, LT, fmtClock, fmtHour, dayKey, dayName, r0, moon,
-  parseOpenMeteo, derive, fishDay, gearFor, wearFor, GEAR, holidayFor,
+  parseOpenMeteo, derive, fishDay, gearFor, wearFor, GEAR, holidayFor, visitorFor,
 } from "../almanac-core.js";
 
 export const HOME = { name: "Canal Winchester, OH", lat: 39.8437, lon: -82.8046 };
@@ -124,16 +124,16 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     else sky = pick("No rain in sight.", "Dry skies all day.", "No rain today. Good dam-building weather!");
     const todayHours = hours.filter(h => dayKey(h.t, off) === today);
     const gear = gearFor(c, off, todayHours);
-    const hol = holidayFor(now, off), firsts = firstsFor(todayHours);
+    const hol = holidayFor(now, off), firsts = firstsFor(todayHours), vis = visitorFor(now, off, gear, hol);
     for (const f of firsts) state.firsts[f.key] = f.val;
     messages.push({
       title: hol?.today ? hol.greet : firsts.length ? firsts[0].title : pick(`Good morning from Beavy! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`, `Rise and shine! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`,
         `Morning! Beavy checked the sky: high ${r0(d0.hi)}°`, `Up and at 'em! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`),
-      message: firsts.map(f => f.line + "\n\n").join("") + `${r0(c.temp)}° now. High ${r0(d0.hi)}°, low ${r0(d0.lo)}°. ${sky}` +
+      message: firsts.map(f => f.line + "\n\n").join("") + (vis ? vis.line + "\n\n" : "") + `${r0(c.temp)}° now. High ${r0(d0.hi)}°, low ${r0(d0.lo)}°. ${sky}` +
         (alerts.length ? ` ⚠️ ${alerts.map(a => a.event).join(", ")}.` : "") +
-        `\n\nBeavy says to wear ${wearFor(gear, fc, now)}` + SIGN,
+        `\n\n${vis ? `Beavy and ${vis.name} say` : "Beavy says"} to wear ${wearFor(gear, fc, now)}` + SIGN,
       priority: PRI.normal, tags: [EMOJI.morning],
-      attach: hol?.art ? `${APP_URL}notify/img/holiday-${hol.key}.jpg` : `${APP_URL}notify/img/gear-${gear}.jpg`, filename: `beavy-${hol?.art ? hol.key : gear}.jpg`,
+      attach: `${APP_URL}notify/img/${vis ? vis.img : hol?.art ? `holiday-${hol.key}` : `gear-${gear}`}.jpg`, filename: `${vis ? vis.img : hol?.art ? `beavy-${hol.key}` : `beavy-${gear}`}.jpg`,
       buttons: ["app", "snooze"],
     });
     state.morning = today;
@@ -188,8 +188,8 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     else sky = pick("Dry all day.", "No rain in the forecast.", "Dry all day. Beavy approves.");
     if (gust >= 30) sky += ` Windy, gusts to ${r0(gust)} mph.`;
     const gear = gearFor(morning, off, tHours);
-    const tHol = holidayFor(morning.t, off), tFirsts = firstsFor(tHours);
-    const extra = [tHol?.today ? `Tomorrow is ${tHol.name}!` : "", ...tFirsts.map(f => f.line.replace("It's", tHol?.today ? "It also looks like" : "Tomorrow looks like"))].filter(Boolean).join(" ");
+    const tHol = holidayFor(morning.t, off), tFirsts = firstsFor(tHours), tVis = visitorFor(morning.t, off, gear, tHol);
+    const extra = [tHol?.today ? `Tomorrow is ${tHol.name}!` : "", tVis ? `${tVis.name.replace(/^the /, "The ")} is coming to visit tomorrow!` : "", ...tFirsts.map(f => f.line.replace("It's", tHol?.today ? "It also looks like" : "Tomorrow looks like"))].filter(Boolean).join(" ");
     const f = fishDay(d1, fc, now);
     const fishLine = f ? ` Fishing: ${f.rating} of 5 fish${f.rating >= 4 && f.windows.length ? `, best ${f.windows.map(w => `${ampm(w.start.t, off)}–${ampm(w.end.t + HOUR, off)}`).join(" and ")}` : ""}.` : "";
     messages.push({
@@ -198,7 +198,7 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
         `\n\nTomorrow, Beavy says to wear ${wearFor(gear, fc, morning.t)}` +
         `\n\n${pick("Sleep tight!", "Goodnight from the lodge!", "Sweet dreams!", "Nighty night!")}` + SIGN,
       priority: PRI.normal, tags: [EMOJI.evening],
-      attach: tHol?.art ? `${APP_URL}notify/img/holiday-${tHol.key}.jpg` : `${APP_URL}notify/img/gear-${gear}.jpg`, filename: `beavy-${tHol?.art ? tHol.key : gear}.jpg`,
+      attach: `${APP_URL}notify/img/${tVis ? tVis.img : tHol?.art ? `holiday-${tHol.key}` : `gear-${gear}`}.jpg`, filename: `${tVis ? tVis.img : tHol?.art ? `beavy-${tHol.key}` : `beavy-${gear}`}.jpg`,
       buttons: ["app"],
     });
     state.evening = today;

@@ -298,4 +298,39 @@ function holidayFor(t, off) {
     line: next.days === 0 ? next.greet : next.days === 1 ? `Tomorrow is ${next.name}! ${emoji}` : `Beavy's getting ready for ${next.name}: ${next.days} days to go! ${emoji}` };
 }
 
-export { holidayFor, HOLIDAY_ART, WEAR, wearFor, DAY, DN, FIRST_HR, GEAR, HOUR, LAST_HR, LT, VERDICT, clamp, compass, dayKey, dayName, derive, fishDay, fishHour, fmtClock, fmtHour, fmtIn, gearFor, moon, moonAlt, parseLocal, parseOpenMeteo, r0, solunar, sunTimes };
+// ---------- the crew: Mia's other favorite animals stop by now and then ----------
+// Visits are picked from the date, so everyone sees the same visitor all day and it doesn't change on reload.
+// Every week has one visit day and half the weeks get a second one (at least two days apart), so it's
+// once or twice a week, never two days in a row. The Turkey always comes for Thanksgiving.
+const CREW = {
+  turkey: { name: "the Turkey", line: "The Turkey is visiting today! Gobble gobble!", fact: "Turkey" },
+  dolphin: { name: "the Dolphin", line: "The Dolphin swam over to visit today! Splash!", fact: "Dolphin" },
+  turtle: { name: "the Turtle", line: "The Turtle made it over to visit today. Slow and steady!", fact: "Turtle" },
+};
+const CREW_OUTFIT = { sunny: "sunny", hot: "sunny", rainy: "rainy", snowy: "snowy", extreme: "snowy", windy: "windy", spring: "windy", fall: "windy" };
+const CREW_HOLIDAYS = ["christmas", "thanksgiving", "halloween", "easter", "newyear"];
+function dayHash(n, salt = 0) {
+  let x = (Math.imul(n + 1, 0x9e3779b1) + Math.imul(salt + 1, 0x85ebca6b)) >>> 0;
+  x ^= x >>> 15; x = Math.imul(x, 0x2c1b3c6d) >>> 0; x ^= x >>> 12; x = Math.imul(x, 0x297a2d39) >>> 0; x ^= x >>> 15;
+  return x >>> 0;
+}
+function visitDay(n) {
+  const week = Math.floor(n / 7), d = ((n % 7) + 7) % 7;
+  const a = dayHash(week) % 7, b = (a + 2 + dayHash(week, 1) % 4) % 7;   // b is at least two days from a
+  return d === a || (dayHash(week, 2) % 2 === 0 && d === b);
+}
+function visitorFor(t, off, gear, hol = null) {
+  const n = Math.floor((t + off * 1000) / DAY);
+  let key = null;
+  if (hol?.key === "thanksgiving" && hol.today) key = "turkey";
+  else {
+    if (!visitDay(n) || visitDay(n - 1)) return null;
+    key = Object.keys(CREW)[dayHash(n, 3) % 3];
+  }
+  const outfit = hol && CREW_HOLIDAYS.includes(hol.key) ? hol.key : (CREW_OUTFIT[gear] || "windy");   // no crew outfit for Beavy's other holidays
+  const c = CREW[key];
+  return { key, ...c, outfit, img: `crew-${key}-${outfit}`,
+    line: hol?.key === "thanksgiving" && hol.today ? "The Turkey is visiting for Thanksgiving! Gobble gobble!" : c.line };
+}
+
+export { CREW, visitorFor, holidayFor, HOLIDAY_ART, WEAR, wearFor, DAY, DN, FIRST_HR, GEAR, HOUR, LAST_HR, LT, VERDICT, clamp, compass, dayKey, dayName, derive, fishDay, fishHour, fmtClock, fmtHour, fmtIn, gearFor, moon, moonAlt, parseLocal, parseOpenMeteo, r0, solunar, sunTimes };

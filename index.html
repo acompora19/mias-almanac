@@ -310,7 +310,7 @@ footer{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:
 
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script type="module">
-import { holidayFor, WEAR, wearFor, DAY, DN, FIRST_HR, GEAR, HOUR, LAST_HR, LT, VERDICT, clamp, compass, dayKey, dayName, derive, fishDay, fishHour, fmtClock, fmtHour, fmtIn, gearFor, moon, moonAlt, parseLocal, parseOpenMeteo, r0, solunar, sunTimes } from "./almanac-core.js";
+import { CREW, visitorFor, holidayFor, WEAR, wearFor, DAY, DN, FIRST_HR, GEAR, HOUR, LAST_HR, LT, VERDICT, clamp, compass, dayKey, dayName, derive, fishDay, fishHour, fmtClock, fmtHour, fmtIn, gearFor, moon, moonAlt, parseLocal, parseOpenMeteo, r0, solunar, sunTimes } from "./almanac-core.js";
 // Firebase is optional and loads after the page is drawn: if it can't load, the weather still
 // works and spots fall back to the ones saved on this phone.
 let initializeApp = null, F = null;
@@ -652,19 +652,24 @@ function render() {
   const aside = italianAside(c);
   const gear = gearFor(c, fc.off, fc.hours.filter(h => dayKey(h.t, fc.off) === dayKey(c.t, fc.off)));
   const hol = holidayFor(D.now, fc.off);
-  const gearImg = hol?.art ? `holiday-${hol.key}.webp` : `gear-${gear}.webp`, gearName = hol?.art ? `Dressed for ${hol.name.replace(/^the /, "")}` : GEAR[gear];
+  const vis = visitorFor(D.now, fc.off, gear, hol);
+  visitor = vis;
+  const gearImg = vis ? `${vis.img}.webp` : hol?.art ? `holiday-${hol.key}.webp` : `gear-${gear}.webp`;
+  const gearName = vis ? `Visiting today: ${vis.name}` : hol?.art ? `Dressed for ${hol.name.replace(/^the /, "")}` : GEAR[gear];
+  const who = vis ? `Beavy and ${vis.name} say` : "Beavy says";
   nc.innerHTML = `
     ${aside ? `<p class="aside">${aside[0]}<span>${aside[1]}</span></p>` : ""}
     <div class="now">
       <div class="temp">${r0(c.temp)}<sup>°F</sup></div>
       <div class="cond">
-        <button class="buddy" id="buddy" type="button" aria-label="Tap the beaver for a beaver fact"><img class="gear" src="${gearImg}" alt="Mia's beaver dressed for ${hol?.art ? hol.name.replace(/^the /, "") : "the weather"}: ${gearName}" width="112" height="139" decoding="async"></button>
+        <button class="buddy" id="buddy" type="button" aria-label="Tap for an animal fact"><img class="gear" src="${gearImg}" alt="${vis ? `${vis.fact} visiting, dressed for ${hol?.art ? hol.name.replace(/^the /, "") : "the weather"}` : `Mia's beaver dressed for ${hol?.art ? hol.name.replace(/^the /, "") : "the weather"}: ${gearName}`}" width="112" height="139" decoding="async"></button>
         <span class="gear-tag">${gearName}</span>
         <strong>${icon(ic, 26)} ${label}</strong><span>Feels like ${r0(c.feels)}° · H ${r0(today.hi)}° L ${r0(today.lo)}°</span>
       </div>
     </div>
     ${hol ? `<p class="holiday">${esc(hol.line)}</p>` : ""}
-    <p class="wear"><span class="label">What should Mia wear?</span><span><b>Beavy says to wear</b> ${esc(wearFor(gear, fc, D.now))}</span></p>
+    ${vis ? `<p class="holiday">${esc(vis.line)}</p>` : ""}
+    <p class="wear"><span class="label">What should Mia wear?</span><span><b>${who} to wear</b> ${esc(wearFor(gear, fc, D.now))}</span></p>
     <p class="fact-bubble" id="factbubble" hidden></p>
     <div class="facts">
       <div class="fact"><span class="label">Wind</span><b>${compass(c.dir)} ${r0(c.wind)}</b><span class="hint">gusts ${r0(c.gust)} mph</span></div>
@@ -852,6 +857,33 @@ const BEAVER_FACTS = [
   "Beavers store fat in their tails to help get through winter.",
   "Beavers almost disappeared from North America because of the fur trade, but now they are back."
 ];
+let visitor = null;   // today's visiting animal, if any (set when the now card renders)
+const CREW_FACTS = {
+  turkey: [
+    "Wild turkeys can fly! They zoom up into trees at night to sleep.",
+    "A turkey's gobble can be heard a mile away.",
+    "Turkeys have great eyesight and can see almost all the way around them.",
+    "The red wobbly thing on a turkey's neck is called a wattle.",
+    "A group of turkeys is called a rafter.",
+    "Turkeys can run about 25 miles an hour, as fast as a car on a neighborhood street.",
+  ],
+  dolphin: [
+    "Dolphins sleep with one half of their brain at a time, so they can keep swimming.",
+    "Every dolphin has its own special whistle, like a name.",
+    "Dolphins find things in the water by making clicks and listening for the echoes.",
+    "Dolphins breathe air through a hole on top of their heads, called a blowhole.",
+    "Dolphins like to play, surf waves, and even toss seaweed to each other.",
+    "A baby dolphin is called a calf and stays with its mom for years.",
+  ],
+  turtle: [
+    "A turtle's shell is part of its body. It can't crawl out of it.",
+    "Some turtles can live to be over 100 years old.",
+    "Sea turtles swim thousands of miles and come back to the beach where they hatched.",
+    "Turtles have no teeth, but their beaks are sharp.",
+    "Box turtles can close their shells up tight, like a box.",
+    "Turtles have been around since the time of the dinosaurs.",
+  ],
+};
 function factOfTheDay() {
   const d = new Date(), start = new Date(d.getFullYear(), 0, 0);
   const day = Math.floor((d - start) / 86400000) + d.getFullYear() * 7;
@@ -862,8 +894,9 @@ let factIdx = Math.floor(Math.random() * BEAVER_FACTS.length);
 document.addEventListener("click", e => {
   const b = e.target.closest("#buddy"); if (!b) return;
   const bub = $("factbubble"); if (!bub) return;
-  factIdx = (factIdx + 1) % BEAVER_FACTS.length;
-  bub.innerHTML = `<b>Beaver fact</b>${BEAVER_FACTS[factIdx]}`;
+  factIdx++;
+  const list = visitor ? CREW_FACTS[visitor.key] : BEAVER_FACTS;
+  bub.innerHTML = `<b>${visitor ? visitor.fact : "Beaver"} fact</b>${list[factIdx % list.length]}`;
   bub.hidden = false;
   b.classList.remove("wiggle"); void b.offsetWidth; b.classList.add("wiggle");
 });
