@@ -321,14 +321,27 @@ function visitDay(n) {
   const cands = [0, 1, 2, 3, 4, 5, 6].filter(far), c = cands.length ? cands[dayHash(week, 2) % cands.length] : -1;
   return d === a ? 0 : d === b ? 1 : (dayHash(week, 4) % 2 === 0 && d === c) ? 2 : -1;   // which visit of the week, or -1
 }
+// One-off visits on a set date (local date -> animal), on top of the regular schedule.
+const SPECIAL_VISITS = { "2026-10-27": "turtle" };
+// From Oct 27, 2026 the three visit in a fixed order: Turtle, then Gobble, then the Dolphin, round and round.
+const VISIT_ORDER = ["turtle", "turkey", "dolphin"];
+const ORDER_FROM = Math.floor(Date.UTC(2026, 9, 27) / DAY);   // day number of Oct 27, 2026
+const dayStr = n => new Date(n * DAY).toISOString().slice(0, 10);
+function isVisitDay(n) {
+  if (SPECIAL_VISITS[dayStr(n)]) return true;
+  return visitDay(n) >= 0 && visitDay(n - 1) < 0 && !SPECIAL_VISITS[dayStr(n - 1)];   // never two days in a row
+}
 function visitorFor(t, off, gear, hol = null) {
   const n = Math.floor((t + off * 1000) / DAY);
   let key = null;
   if (hol?.key === "thanksgiving" && hol.today) key = "turkey";
   else {
-    const rank = visitDay(n);
-    if (rank < 0 || visitDay(n - 1) >= 0) return null;
-    key = Object.keys(CREW)[(dayHash(Math.floor(n / 7), 5) + rank) % 3];   // the three take turns within a week
+    if (!isVisitDay(n)) return null;
+    if (n >= ORDER_FROM) {
+      let i = 0;                                        // which visit this is since the order began
+      for (let d = ORDER_FROM; d < n; d++) if (isVisitDay(d)) i++;
+      key = VISIT_ORDER[i % VISIT_ORDER.length];
+    } else key = Object.keys(CREW)[(dayHash(Math.floor(n / 7), 5) + Math.max(0, visitDay(n))) % 3];   // the old way, for past dates
   }
   const outfit = hol && CREW_HOLIDAYS.includes(hol.key) ? hol.key : (CREW_OUTFIT[gear] || "windy");   // no crew outfit for Beavy's other holidays
   const c = CREW[key];
