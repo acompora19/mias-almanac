@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import {
   HOUR, DAY, LT, fmtClock, fmtHour, dayKey, dayName, r0, moon,
-  parseOpenMeteo, derive, fishDay, gearFor, wearFor, GEAR, holidayFor, visitorFor, walkReport,
+  parseOpenMeteo, derive, fishDay, gearFor, wearFor, GEAR, holidayFor, visitorFor, ballReport,
 } from "../almanac-core.js";
 
 export const HOME = { name: "Canal Winchester, OH", lat: 39.8437, lon: -82.8046 };
@@ -125,7 +125,7 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     const todayHours = hours.filter(h => dayKey(h.t, off) === today);
     const gear = gearFor(c, off, todayHours);
     const hol = holidayFor(now, off), firsts = firstsFor(todayHours), vis = visitorFor(now, off, gear, hol);
-    const walk = walkReport(todayHours, off, now);
+    const walk = ballReport(todayHours, off, now);
     for (const f of firsts) state.firsts[f.key] = f.val;
     messages.push({
       title: hol?.today ? hol.greet : firsts.length ? firsts[0].title : pick(`Good morning from Beavy! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`, `Rise and shine! ${r0(c.temp)}° now, high ${r0(d0.hi)}°`,
@@ -133,7 +133,7 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
       message: firsts.map(f => f.line + "\n\n").join("") + (vis ? vis.line + "\n\n" : "") + `${r0(c.temp)}° now. High ${r0(d0.hi)}°, low ${r0(d0.lo)}°. ${sky}` +
         (alerts.length ? ` ⚠️ ${alerts.map(a => a.event).join(", ")}.` : "") +
         `\n\n${vis ? `Beavy and ${vis.name} say` : "Beavy says"} to wear ${wearFor(gear, fc, now)}` +
-        (walk ? `\n\nGrizzy's walk: ${"🐾".repeat(walk.paws)} ${walk.line}` : "") + SIGN,
+        (walk ? `\n\nGrizzy's ball report: ${"🎾".repeat(walk.balls)} ${walk.line}` : "") + SIGN,
       priority: PRI.normal, tags: [EMOJI.morning],
       attach: `${APP_URL}notify/img/${vis ? vis.img : hol?.art ? `holiday-${hol.key}` : `gear-${gear}`}.jpg`, filename: `${vis ? vis.img : hol?.art ? `beavy-${hol.key}` : `beavy-${gear}`}.jpg`,
       buttons: ["app", "snooze"],
@@ -191,7 +191,7 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
     if (gust >= 30) sky += ` Windy, gusts to ${r0(gust)} mph.`;
     const gear = gearFor(morning, off, tHours);
     const tHol = holidayFor(morning.t, off), tFirsts = firstsFor(tHours), tVis = visitorFor(morning.t, off, gear, tHol);
-    const tWalk = walkReport(tHours, off, tHours[0]?.t ?? now);
+    const tWalk = ballReport(tHours, off, tHours[0]?.t ?? now);
     const extra = [tHol?.today ? `Tomorrow is ${tHol.name}!` : "", tVis ? `${tVis.name.replace(/^the /, "The ")} is coming to visit tomorrow!` : "", ...tFirsts.map(f => f.line.replace("It's", tHol?.today ? "It also looks like" : "Tomorrow looks like"))].filter(Boolean).join(" ");
     const f = fishDay(d1, fc, now);
     const fishLine = f ? ` Fishing: ${f.rating} of 5 fish${f.rating >= 4 && f.windows.length ? `, best ${f.windows.map(w => `${ampm(w.start.t, off)}–${ampm(w.end.t + HOUR, off)}`).join(" and ")}` : ""}.` : "";
@@ -199,7 +199,7 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
       title: pick(`Beavy's peek at tomorrow: high ${r0(d1.hi)}°`, `Tomorrow, says Beavy: high ${r0(d1.hi)}°, low ${r0(d1.lo)}°`, `Beavy's weather for tomorrow: ${r0(d1.hi)}° and ${r0(d1.lo)}°`),
       message: (extra ? extra + "\n\n" : "") + `${dayName(d1.t + 12 * HOUR, off)}: high ${r0(d1.hi)}°, low ${r0(d1.lo)}°. ${sky}${fishLine}` +
         `\n\nTomorrow, Beavy says to wear ${wearFor(gear, fc, morning.t)}` +
-        (tWalk ? `\n\nGrizzy's walk tomorrow: ${"🐾".repeat(tWalk.paws)} ${tWalk.line}` : "") +
+        (tWalk ? `\n\nGrizzy's ball report for tomorrow: ${"🎾".repeat(tWalk.balls)} ${tWalk.line}` : "") +
         `\n\n${pick("Sleep tight!", "Goodnight from the lodge!", "Sweet dreams!", "Nighty night!")}` + SIGN,
       priority: PRI.normal, tags: [EMOJI.evening],
       attach: `${APP_URL}notify/img/${tVis ? tVis.img : tHol?.art ? `holiday-${tHol.key}` : `gear-${gear}`}.jpg`, filename: `${tVis ? tVis.img : tHol?.art ? `beavy-${tHol.key}` : `beavy-${gear}`}.jpg`,

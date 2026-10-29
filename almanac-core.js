@@ -361,15 +361,15 @@ function nextVisit(t, off) {
   return null;
 }
 
-// ---------- Grizzy, Mia's dog: on the page every day with a walk report ----------
+// ---------- Grizzy, Mia's dog: on the page every day with a ball-throwing report (he lives for his ball) ----------
 const GRIZZY_OUTFIT = CREW_OUTFIT;   // same weather outfits as the crew: sunny, rainy, snowy, windy
 const GRIZZY_HOLIDAYS = ["christmas", "thanksgiving", "halloween", "easter", "july4", "stpatrick", "valentine", "newyear"];
 function grizzyFor(gear, hol = null) {
   const outfit = hol && GRIZZY_HOLIDAYS.includes(hol.key) ? hol.key : (GRIZZY_OUTFIT[gear] || "windy");
   return { outfit, img: `grizzy-${outfit}` };
 }
-// How good an hour is for walking a dog, 0 to 5 paws.
-function walkScore(h) {
+// How good an hour is for playing ball outside, 0 to 5 balls.
+function ballScore(h) {
   let s = 5;
   if (h.code >= 95) s -= 5;
   else if (h.pop >= 50 || h.precip >= 0.02 || h.code >= 51) s -= 3;
@@ -380,16 +380,16 @@ function walkScore(h) {
   if (h.gust >= 30) s -= 1;
   return clamp(s, 0, 5);
 }
-// Walk report for one day: dayHours are that day's hours, now is "from when" (the rest of today, or tomorrow from 7 AM).
-function walkReport(dayHours, off, now) {
+// Ball report for one day: dayHours are that day's hours, now is "from when" (the rest of today, or tomorrow from 7 AM).
+function ballReport(dayHours, off, now) {
   const hr = h => LT(h.t, off).getUTCHours();
   const rest = dayHours.filter(h => h.t + HOUR > now && hr(h) >= 7 && hr(h) <= 20);
   if (!rest.length) return null;
-  const scores = rest.map(walkScore), paws = Math.max(...scores);
+  const scores = rest.map(ballScore), balls = Math.max(...scores);
   // best stretch: the longest run of top-scoring hours (earliest wins a tie)
   let best = null, run = null;
   rest.forEach((h, i) => {
-    if (scores[i] === paws) { if (run && run.end.t + HOUR === h.t) run.end = h; else run = { start: h, end: h }; if (!best || (run.end.t - run.start.t) > (best.end.t - best.start.t)) best = run; }
+    if (scores[i] === balls) { if (run && run.end.t + HOUR === h.t) run.end = h; else run = { start: h, end: h }; if (!best || (run.end.t - run.start.t) > (best.end.t - best.start.t)) best = run; }
     else run = null;
   });
   const when = `${fmtHour(best.start.t, off)}–${fmtHour(best.end.t + HOUR, off)}`.replace(/a/g, " AM").replace(/p/g, " PM");
@@ -398,19 +398,19 @@ function walkReport(dayHours, off, now) {
   const storm = rest.find(h => h.code >= 95 && h.t < now + 4 * HOUR);
   const hot = Math.max(...rest.map(h => h.temp)), cold = Math.min(...rest.map(h => h.feels ?? h.temp)), gust = Math.max(...rest.map(h => h.gust || 0));
   let line, rainLine = false;
-  if (storm) line = "Storms around. Keep Grizzy close to home.";
-  else if (wet(cur)) { rainLine = true; const dry = rest.find(h => !wet(h)); line = dry ? `Raining now, but it should dry up around ${fmtHour(dry.t, off).replace("a", " AM").replace("p", " PM")}.` : "Rainy all day. Quick trips only, and a towel by the door."; }
-  else if (rest.some(wet)) { rainLine = true; const w = rest.find(wet); line = `Dry until about ${fmtHour(w.t, off).replace("a", " AM").replace("p", " PM")}, so walk before then.`; }
-  else if (cur.temp >= 82) line = "Hot right now. Hot pavement burns paws, so wait for the evening.";
-  else if (hot >= 82) line = "Hot this afternoon, so go early or after dinner.";
-  else if ((cur.feels ?? cur.temp) <= 20) line = "Bitter cold out there. A quick one, then back inside.";
-  else if ((cur.feels ?? cur.temp) <= 32) line = "Cold out. Keep it short and wipe his paws after." + (best.start.t > cur.t + HOUR ? ` Warmer from ${fmtHour(best.start.t, off).replace("a", " AM").replace("p", " PM")}.` : "");
-  else if (cold <= 32) line = "It gets cold later, so go earlier.";
-  else if (gust >= 30) line = "Windy today. Hold on to that leash!";
-  else line = allGreat ? "Great walking weather all day!" : "Good walking weather.";
+  if (storm) line = "Storms around. Ball stays inside today.";
+  else if (wet(cur)) { rainLine = true; const dry = rest.find(h => !wet(h)); line = dry ? `Raining now, but it should dry up around ${fmtHour(dry.t, off).replace("a", " AM").replace("p", " PM")}.` : "Rainy all day. Indoor ball only, or a muddy dog!"; }
+  else if (rest.some(wet)) { rainLine = true; const w = rest.find(wet); line = `Dry until about ${fmtHour(w.t, off).replace("a", " AM").replace("p", " PM")}, so play before then.`; }
+  else if (cur.temp >= 82) line = "Hot right now. Wait for the evening, and bring his water bowl.";
+  else if (hot >= 82) line = "Hot this afternoon, so throw early or after dinner. Bring water.";
+  else if ((cur.feels ?? cur.temp) <= 20) line = "Bitter cold out there. A few quick throws, then back inside.";
+  else if ((cur.feels ?? cur.temp) <= 32) line = "Cold out. A short game, then wipe his balls." + (best.start.t > cur.t + HOUR ? ` Warmer from ${fmtHour(best.start.t, off).replace("a", " AM").replace("p", " PM")}.` : "");
+  else if (cold <= 32) line = "It gets cold later, so play earlier.";
+  else if (gust >= 30) line = "Windy today. The ball won't go where you throw it!";
+  else line = allGreat ? "Perfect ball weather all day!" : "Good ball weather.";
   const partial = best.start.t !== rest[0].t || best.end.t !== rest[rest.length - 1].t;   // only worth saying if it's not "all day"
-  if (partial && !allGreat && !storm && !rainLine && paws >= 2) line += ` Best time: ${when}.`;
-  return { paws, line, best };
+  if (partial && !allGreat && !storm && !rainLine && balls >= 2) line += ` Best time: ${when}.`;
+  return { balls, line, best };
 }
 
-export { grizzyFor, walkReport, CREW, visitorFor, nextVisit, holidayFor, HOLIDAY_ART, WEAR, wearFor, DAY, DN, FIRST_HR, GEAR, HOUR, LAST_HR, LT, VERDICT, clamp, compass, dayKey, dayName, derive, fishDay, fishHour, fmtClock, fmtHour, fmtIn, gearFor, moon, moonAlt, parseLocal, parseOpenMeteo, r0, solunar, sunTimes };
+export { grizzyFor, ballReport, CREW, visitorFor, nextVisit, holidayFor, HOLIDAY_ART, WEAR, wearFor, DAY, DN, FIRST_HR, GEAR, HOUR, LAST_HR, LT, VERDICT, clamp, compass, dayKey, dayName, derive, fishDay, fishHour, fmtClock, fmtHour, fmtIn, gearFor, moon, moonAlt, parseLocal, parseOpenMeteo, r0, solunar, sunTimes };
