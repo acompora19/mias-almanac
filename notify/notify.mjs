@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import {
   HOUR, DAY, LT, fmtClock, fmtHour, dayKey, dayName, r0, moon,
-  parseOpenMeteo, derive, fishDay, gearFor, wearFor, GEAR, holidayFor, visitorFor, ballReport,
+  parseOpenMeteo, derive, fishDay, gearFor, wearFor, GEAR, holidayFor, visitorFor, ballReport, fishWhere,
 } from "../almanac-core.js";
 
 export const HOME = { name: "Canal Winchester, OH", lat: 39.8437, lon: -82.8046 };
@@ -219,6 +219,7 @@ export async function run({ fetchFn = fetch, now = Date.now(), state = {}, place
         message: `The fish should be biting ${dayName(D.days[1].t + 12 * HOUR, off)}.` +
           (f.windows.length ? ` Best times: ${f.windows.map(fmtW).join(" and ")}.` : "") +
           (f.reasons[0] ? ` ${f.reasons[0][1]}` : "") +
+          (() => { const w = fishWhere(f, fc); return (w.pick ? ` Beavy would try ${w.pick.name}: ${w.pick.why}.` : "") + (w.tips[0] ? ` Tip: ${w.tips[0]}` : ""); })() +
           ` ${pick("Beavy only eats plants, but even he's tempted.", "Bring home a big one!", "Tight lines!")}` + SIGN,
         priority: PRI.normal, tags: [EMOJI.fish], buttons: ["app", "snooze"],
       });

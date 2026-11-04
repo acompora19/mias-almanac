@@ -413,4 +413,78 @@ function ballReport(dayHours, off, now) {
   return { balls, line, best };
 }
 
-export { grizzyFor, ballReport, CREW, visitorFor, nextVisit, holidayFor, HOLIDAY_ART, WEAR, wearFor, DAY, DN, FIRST_HR, GEAR, HOUR, LAST_HR, LT, VERDICT, clamp, compass, dayKey, dayName, derive, fishDay, fishHour, fmtClock, fmtHour, fmtIn, gearFor, moon, moonAlt, parseLocal, parseOpenMeteo, r0, solunar, sunTimes };
+// ---------- where to fish around central Ohio, and tips for the day's weather ----------
+const WATERS = [
+  { name: "Hoover Reservoir", kind: "big", fish: "saugeye, crappie, bass, catfish", note: "big open water; the dam end and the causeways fish well from shore" },
+  { name: "Buckeye Lake", kind: "big", shallow: true, fish: "saugeye, crappie, bass, catfish", note: "shallow, so it warms up fast but gets rough and muddy in wind" },
+  { name: "the Scioto River", kind: "river", fish: "smallmouth, saugeye, catfish", note: "saugeye stack up below the dams in the cold months" },
+  { name: "Three Creeks", kind: "river", fish: "smallmouth, saugeye, catfish", note: "where Alum, Big Walnut and Blacklick meet; wade or fish the bank" },
+  { name: "Walnut Woods", kind: "pond", fish: "bass, bluegill, catfish", note: "sheltered ponds close to home" },
+  { name: "Pickerington Ponds", kind: "pond", fish: "bass, bluegill, catfish", note: "sheltered ponds close to home" },
+  { name: "Howe Pond", kind: "pond", fish: "bass and bluegill", note: "a quick trip when time is short" },
+  { name: "the Canal Winchester ponds", kind: "pond", fish: "bass and bluegill", note: "a quick trip after work" },
+];
+const CENTRAL_OHIO = { lat: 39.96, lon: -82.99, miles: 45 };
+function milesBetween(a, b) {
+  const R = 3959, dLat = (b.lat - a.lat) * Math.PI / 180, dLon = (b.lon - a.lon) * Math.PI / 180;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+// F is a fishDay() result for one day. Returns { local, pick, alts, tips, cond } (pick/alts only near central Ohio).
+function fishWhere(F, fc) {
+  const off = fc.off, mo = LT(F.midnight + 12 * HOUR, off).getUTCMonth();
+  const pool = F.hrs.filter(h => !h.past).length >= 2 ? F.hrs.filter(h => !h.past) : F.hrs;
+  const H = pool.map(h => fc.hours[h.i]);
+  const wAvg = H.reduce((a, h) => a + h.wind, 0) / H.length, wMax = Math.max(...H.map(h => h.gust));
+  const hi = Math.max(...H.map(h => h.temp)), feelsLo = Math.min(...H.map(h => h.feels ?? h.temp));
+  const rain48 = fc.hours.filter(h => h.t >= F.midnight - 2 * DAY && h.t < F.midnight).reduce((a, h) => a + (h.precip || 0), 0);
+  const rainToday = H.some(h => h.pop >= 50 || h.precip >= 0.02);
+  const best = [...pool].sort((a, b) => b.s - a.s)[0], pr = best?.f?.pres, post = pr === "upfast" || pool.some(h => h.f?.postfront), pre = pr === "down" || pr === "downfast";
+  const season = mo >= 10 || mo <= 2 ? "cold" : mo <= 4 ? "spring" : mo <= 7 ? "summer" : "fall";
+  const windy = wAvg > 12 || wMax > 22, calm = wAvg < 5, muddy = rain48 >= 0.6, highish = rain48 >= 0.25, hot = hi >= 85, bitter = feelsLo <= 25;
+  const cond = { season, windy, calm, muddy, highish, hot, bitter, post, pre, rain48, wAvg, wMax, rainToday };
+  const local = milesBetween(fc, CENTRAL_OHIO) <= CENTRAL_OHIO.miles;
+
+  // score each water for today; "why" is what's biting there plus the condition that helps it
+  const scored = WATERS.map(w => {
+    let sc = 0, bad = false; const what = [], helps = [];
+    const big = w.kind === "big", river = w.kind === "river", pond = w.kind === "pond";
+    if (season === "cold") { if (big) { sc += 2; what.push("saugeye time on the big water"); } if (river) { sc += 2; what.push("saugeye stack up below the dams"); } if (pond) sc -= 2; if (bitter && river) sc += 1; }
+    if (season === "spring") { if (pond) { sc += 2; what.push("ponds warm up first, so the bass and bluegill wake up there"); } if (big) { sc += 1; what.push("crappie moving shallow"); } if (river) { sc += 1; what.push("smallmouth and saugeye in the moving water"); } }
+    if (season === "summer") { if (river && !muddy && !highish) { sc += 2; what.push("low, clear flow is smallmouth weather"); } if (big) { sc += 1; what.push("catfish and bass early and late"); } if (hot && pond) sc -= 1; if (pond) what.push("bass and bluegill at first and last light"); }
+    if (season === "fall") { if (big) { sc += 2; what.push("the fall feed: saugeye and bass chasing shad"); } if (river) { sc += 1; what.push("smallmouth feeding up for winter"); } if (pond) { sc += 1; what.push("bass feeding up before winter"); } }
+    if (windy) { if (big) { sc -= w.shallow ? 3 : 2; if (w.shallow) bad = true; } else { sc += 1; helps.push(river ? "it's out of the wind down in the valley" : "it's sheltered from the wind"); } }
+    if (muddy) { if (river) { sc -= 3; bad = true; } else if (w.shallow) sc -= 1; else { sc += 1; helps.push("it clears up faster than the rivers after rain"); } }
+    else if (highish && river) sc -= 1;
+    if (post) { if (pond) { sc += 1; helps.push("it's easier to pick apart cover on a tough post-front day"); } if (big) sc -= 1; }
+    if (pre && big) { sc += 1; helps.push("falling pressure gets the big-water bite going"); }
+    if (pond && w.note.includes("quick")) sc -= 0.5;   // break ties toward the metro parks
+    const why = [what[0], helps[0]].filter(Boolean).join(", and ") || w.note;
+    return { ...w, sc, bad, why };
+  }).sort((a, b) => b.sc - a.sc);
+  const pick = local ? scored[0] : null;
+  // alternates: a different kind of water first (a river or a pond to go with a lake), then the next best
+  const okay = local ? scored.slice(1).filter(w => !w.bad && w.sc >= 0) : [];
+  const alts = []; for (const w of okay) { if (alts.length < 2 && !alts.some(x => x.kind === w.kind) && w.kind !== pick.kind) alts.push(w); }
+  for (const w of okay) { if (alts.length < 2 && !alts.includes(w)) alts.push(w); }
+  alts.sort((a, b) => b.sc - a.sc);
+
+  // tips, most important first
+  const tips = [];
+  if (pool.some(h => h.thunder)) tips.push("Lightning around: a graphite rod is a lightning rod. Wait it out in the truck.");
+  if (muddy) tips.push("Muddy water: go dark and loud. Black-and-blue jigs, a chatterbait, or anything with a rattle.");
+  if (post) tips.push("Behind a front, slow way down: small jigs, a drop shot, or a jig and twister crawled tight to cover.");
+  else if (pre) tips.push("Falling pressure: cover water fast before it changes. Crankbaits, blade baits, or a chatterbait.");
+  if (windy) tips.push("Fish the bank the wind is blowing into. It pushes the bait in, and the fish follow.");
+  else if (calm) tips.push("Flat calm: fish spook easy. Downsize, lighten the line, and lean on the low-light windows.");
+  if (season === "cold") tips.push("Saugeye: a 1/4 to 3/8 oz jig with a twister tail or a blade bait, worked slow. The last hour of light into dark is prime.");
+  if (season === "spring") tips.push("A sunny afternoon warms the north bank first, and the bass and crappie follow it in. Small jigs under a float for crappie.");
+  if (season === "summer") tips.push(hot ? "Hot: first light and last light only. Topwater early, then slide out to the deep weed edges." : "Topwater at first light, then work the deeper weed edges and shade.");
+  if (season === "summer" && !muddy) tips.push("Catfish after dark on cut shad at Hoover or Buckeye.");
+  if (season === "fall") tips.push("Find the shad and you find the fish. Points and creek mouths, and watch for birds working.");
+  if (bitter) tips.push("Bitter cold: watch for ice along the bank and keep the trips short.");
+  if (F.sol.majors.length) tips.push("Try to be set up and fishing through the major moon windows marked above.");
+  return { local, pick, alts, tips: tips.slice(0, 3), cond };
+}
+
+export { fishWhere, grizzyFor, ballReport, CREW, visitorFor, nextVisit, holidayFor, HOLIDAY_ART, WEAR, wearFor, DAY, DN, FIRST_HR, GEAR, HOUR, LAST_HR, LT, VERDICT, clamp, compass, dayKey, dayName, derive, fishDay, fishHour, fmtClock, fmtHour, fmtIn, gearFor, moon, moonAlt, parseLocal, parseOpenMeteo, r0, solunar, sunTimes };
